@@ -15,10 +15,8 @@ app = Flask(__name__)
 app.url_map.strict_slashes = False
 
 db_url = os.getenv("DATABASE_URL")
-if db_url is not None:
-    app.config['SQLALCHEMY_DATABASE_URI'] = db_url.replace("postgres://", "postgresql://")
-else:
-    app.config['SQLALCHEMY_DATABASE_URI'] = "sqlite:////tmp/test.db"
+
+app.config['SQLALCHEMY_DATABASE_URI'] = "postgresql://avnadmin:AVNS_fl3y65MHVAn5272hudB@finalproject-alexismendes98-f53e.l.aivencloud.com:16039/defaultdb"
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 MIGRATE = Migrate(app, db)
@@ -50,8 +48,11 @@ def handle_hello():
 """ User Registration (Crreate User Account)"""
 
 @app.route('/register',methods=['POST'])
-def handle_registration():
-    
+def register():
+
+
+    return jsonify({"message": "Registered Sucessfully!"})
+
 
 # this only runs if `$ python src/app.py` is executed
 if __name__ == '__main__':
