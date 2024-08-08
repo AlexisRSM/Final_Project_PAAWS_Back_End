@@ -16,7 +16,7 @@ app.url_map.strict_slashes = False
 
 db_url = os.getenv("DATABASE_URL")
 
-app.config['SQLALCHEMY_DATABASE_URI'] = "postgresql://avnadmin:AVNS_fl3y65MHVAn5272hudB@finalproject-alexismendes98-f53e.l.aivencloud.com:16039/defaultdb"
+app.config['SQLALCHEMY_DATABASE_URI'] = ""
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 MIGRATE = Migrate(app, db)
