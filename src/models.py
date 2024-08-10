@@ -3,14 +3,15 @@ from datetime import datetime
 
 db = SQLAlchemy()
 
-# Model for Adoptions
+# Model for Adoptions //Column n:6
 class Adoption(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     animal_id = db.Column(db.Integer, db.ForeignKey('animal.id'), nullable=False)
-    adoption_date = db.Column(db.DateTime, default=datetime.utcnow)
-    adoption_status = db.Column(db.String(50), default='Pending')
-    form_data = db.Column(db.Text) """Add a more complex form?"""
+    adoption_date = db.Column(db.DateTime, default=datetime.now())
+    adoption_status = db.Column(db.String(255), default='Pending')
+    """ Add a more complex form? """
+    form_data = db.Column(db.String(255)) 
 
     user = db.relationship('User', back_populates='adoptions')
     animal = db.relationship('Animal', back_populates='adoptions')
@@ -20,13 +21,13 @@ class Adoption(db.Model):
     def __repr__(self):
         return f'<Adoption User {self.user_id} adopts Animal {self.animal_id}>'
 
-# Model for Sponsorships
+# Model for Sponsorships //COLUMN N:5
 class Sponsorship(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     animal_id = db.Column(db.Integer, db.ForeignKey('animal.id'), nullable=False)
-    sponsorship_amount = db.Column(db.Float, default=0.0)
-    sponsorship_date = db.Column(db.DateTime, default=datetime.utcnow)
+    sponsorship_amount = db.Column(db.String(255), default='0')
+    sponsorship_date = db.Column(db.DateTime, default=datetime.now())
 
     user = db.relationship('User', back_populates='sponsorships')
     animal = db.relationship('Animal', back_populates='sponsorships')
@@ -36,17 +37,21 @@ class Sponsorship(db.Model):
     def __repr__(self):
         return f'<Sponsorship User {self.user_id} sponsors Animal {self.animal_id} with {self.sponsorship_amount}>'
 
-# Model for Users
+# Model for Users // Column n:9
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(255), unique=True, nullable=False)
     full_name = db.Column(db.String(255),nullable=False)
     email = db.Column(db.String(255), unique=True, nullable=False)
-    password = db.Column(db.String(255), nullable=False) """Password Hash"""
+    """Password Hash?"""
+    password = db.Column(db.String(255), nullable=False) 
     phone_number = db.Column(db.String(255))
     is_admin = db.Column(db.Boolean, default=False)
-    current_spending = db.Column(db.Float, default=0.0)
-    total_spent = db.Column(db.Float, default=0.0)
+    """ Alterar para String? """
+    current_spending = db.Column(db.String(255), default='0') 
+    """ Alterar para String? """
+    total_spent = db.Column(db.String(255), default='0') 
+
 
     adoptions = db.relationship('Adoption', back_populates='user')
     sponsorships = db.relationship('Sponsorship', back_populates='user')
@@ -54,15 +59,16 @@ class User(db.Model):
     def __repr__(self):
         return f'<User {self.username}>'
 
-# Model for Animals
+# Model for Animals //Columns n: 7
 class Animal(db.Model):
-    id = db.Column(db.Integer, primary_key=True) """"""
+    id = db.Column(db.Integer, primary_key=True) 
     name = db.Column(db.String(255), nullable=False)
     species = db.Column(db.String(255), nullable=False)
-    gender = db.Column(db.String(255), nullable=False) """custom list?"""
-    description = db.Column(db.Text, nullable=False) """paragraph"""
-    image_file = db.Column(db.String(255), default='default.jpg') """what type?"""
-    sponsor_id = db.Column(db.Integer, db.ForeignKey('user.id')) """what type?"""
+    gender = db.Column(db.String(255), nullable=False) 
+    description = db.Column(db.String(255), nullable=False) 
+    """what type?"""
+    image_file = db.Column(db.String(255), default='default.jpg') 
+    sponsor_id = db.Column(db.Integer, db.ForeignKey('user.id'))
 
     adoptions = db.relationship('Adoption', back_populates='animal')
     sponsorships = db.relationship('Sponsorship', back_populates='animal')
