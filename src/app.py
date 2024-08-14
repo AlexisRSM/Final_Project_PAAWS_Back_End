@@ -8,8 +8,8 @@ from flask_swagger import swagger
 from flask_cors import CORS
 from utils import APIException, generate_sitemap
 from admin import setup_admin
-from models import db, User
-#from models import Person
+""" from models import db, User """
+from models import db, User, Animal 
 
 app = Flask(__name__)
 app.url_map.strict_slashes = False
@@ -53,6 +53,12 @@ def register():
 
     return jsonify({"message": "Registered Sucessfully!"})
 
+#Test Get all animals
+# List all animals
+@app.route('/api/animals', methods=['GET'])
+def get_animals():
+    animals = Animal.query.limit(10).all()
+    return jsonify([animal.serialize() for animal in animals])
 
 # this only runs if `$ python src/app.py` is executed
 if __name__ == '__main__':

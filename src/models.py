@@ -47,9 +47,7 @@ class User(db.Model):
     password = db.Column(db.String(255), nullable=False) 
     phone_number = db.Column(db.String(255))
     is_admin = db.Column(db.Boolean, default=False)
-    """ Alterar para String? """
     current_spending = db.Column(db.String(255), default='0') 
-    """ Alterar para String? """
     total_spent = db.Column(db.String(255), default='0') 
 
 
