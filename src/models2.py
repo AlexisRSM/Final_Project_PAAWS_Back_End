@@ -3,6 +3,18 @@ from datetime import datetime
 
 db = SQLAlchemy()
 
+#Model for Images
+class Image(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    url = db.Column(db.String(255), nullable=False)  # Store the URL or path of the image
+    animal_id = db.Column(db.Integer, db.ForeignKey('animal.id'), nullable=False)
+
+    animal = db.relationship('Animal', back_populates='images')
+
+    def __repr__(self):
+        return f'<Image {self.url} for Animal ID {self.animal_id}>'
+
+
 # Model for Adoptions //Column n:6
 class Adoption(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -10,11 +22,12 @@ class Adoption(db.Model):
     animal_id = db.Column(db.Integer, db.ForeignKey('animal.id'), nullable=False)
     adoption_date = db.Column(db.DateTime, default=datetime.now())
     adoption_status = db.Column(db.String(255), default='Pending')
+    """ Add a more complex form? """
     form_data = db.Column(db.String(255)) 
 
-    """ user = db.relationship('User', back_populates='adoptions')
+    user = db.relationship('User', back_populates='adoptions')
     animal = db.relationship('Animal', back_populates='adoptions')
-"""
+
     __table_args__ = (db.UniqueConstraint('user_id', 'animal_id', name='uq_user_animal_adoption'),)
 
     def __repr__(self):
@@ -26,10 +39,10 @@ class Sponsorship(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     animal_id = db.Column(db.Integer, db.ForeignKey('animal.id'), nullable=False)
     sponsorship_amount = db.Column(db.String(255), default='0')
-    sponsorship_date = db.Column(db.DateTime, default=datetime.now)
+    sponsorship_date = db.Column(db.DateTime, default=datetime.now())
 
-    """ user = db.relationship('User', back_populates='sponsorships')
-    animal = db.relationship('Animal', back_populates='sponsorships') """
+    user = db.relationship('User', back_populates='sponsorships')
+    animal = db.relationship('Animal', back_populates='sponsorships')
 
     __table_args__ = (db.UniqueConstraint('user_id', 'animal_id', name='uq_user_animal_sponsorship'),)
 
@@ -38,8 +51,7 @@ class Sponsorship(db.Model):
 
 # Model for Users // Column n:9
 class User(db.Model):
-    __tablename__ = 'User'
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(255), unique=True, nullable=False)
     full_name = db.Column(db.String(255),nullable=False)
     email = db.Column(db.String(255), unique=True, nullable=False)
@@ -51,8 +63,8 @@ class User(db.Model):
     total_spent = db.Column(db.String(255), default='0') 
 
 
-    """ adoptions = db.relationship('Adoption', back_populates='user')
-    sponsorships = db.relationship('Sponsorship', back_populates='user') """
+    adoptions = db.relationship('Adoption', back_populates='user')
+    sponsorships = db.relationship('Sponsorship', back_populates='user')
 
     def __repr__(self):
         return f'<User {self.username}>'
@@ -69,8 +81,8 @@ class Animal(db.Model):
     #create image table with url and animal id 
     sponsor_id = db.Column(db.Integer, db.ForeignKey('user.id'))
 
-    """ adoptions = db.relationship('Adoption', back_populates='animal')
-    sponsorships = db.relationship('Sponsorship', back_populates='animal') """
+    adoptions = db.relationship('Adoption', back_populates='animal')
+    sponsorships = db.relationship('Sponsorship', back_populates='animal')
 
     def __repr__(self):
         return f'<Animal {self.name}>'

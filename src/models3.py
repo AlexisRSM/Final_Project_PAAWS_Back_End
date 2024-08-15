@@ -12,9 +12,6 @@ class Adoption(db.Model):
     adoption_status = db.Column(db.String(255), default='Pending')
     form_data = db.Column(db.String(255)) 
 
-    """ user = db.relationship('User', back_populates='adoptions')
-    animal = db.relationship('Animal', back_populates='adoptions')
-"""
     __table_args__ = (db.UniqueConstraint('user_id', 'animal_id', name='uq_user_animal_adoption'),)
 
     def __repr__(self):
@@ -26,10 +23,7 @@ class Sponsorship(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     animal_id = db.Column(db.Integer, db.ForeignKey('animal.id'), nullable=False)
     sponsorship_amount = db.Column(db.String(255), default='0')
-    sponsorship_date = db.Column(db.DateTime, default=datetime.now)
-
-    """ user = db.relationship('User', back_populates='sponsorships')
-    animal = db.relationship('Animal', back_populates='sponsorships') """
+    sponsorship_date = db.Column(db.DateTime, default=datetime.now())
 
     __table_args__ = (db.UniqueConstraint('user_id', 'animal_id', name='uq_user_animal_sponsorship'),)
 
@@ -38,39 +32,29 @@ class Sponsorship(db.Model):
 
 # Model for Users // Column n:9
 class User(db.Model):
-    __tablename__ = 'User'
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    __tablename__ = 'public.User'
+    id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(255), unique=True, nullable=False)
-    full_name = db.Column(db.String(255),nullable=False)
+    full_name = db.Column(db.String(255), nullable=False)
     email = db.Column(db.String(255), unique=True, nullable=False)
-    """Password Hash?"""
-    password = db.Column(db.String(255), nullable=False) 
+    password = db.Column(db.String(255), nullable=False)
     phone_number = db.Column(db.String(255))
     is_admin = db.Column(db.Boolean, default=False)
-    current_spending = db.Column(db.String(255), default='0') 
-    total_spent = db.Column(db.String(255), default='0') 
-
-
-    """ adoptions = db.relationship('Adoption', back_populates='user')
-    sponsorships = db.relationship('Sponsorship', back_populates='user') """
+    current_spending = db.Column(db.String(255), default='0')
+    total_spent = db.Column(db.String(255), default='0')
 
     def __repr__(self):
         return f'<User {self.username}>'
 
 # Model for Animals //Columns n: 7
 class Animal(db.Model):
-    id = db.Column(db.Integer, primary_key=True) 
+    id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(255), nullable=False)
     species = db.Column(db.String(255), nullable=False)
-    gender = db.Column(db.String(255), nullable=False) 
-    description = db.Column(db.String(255), nullable=False) 
-    """what type?"""
-    image_file = db.Column(db.String(255), default='default.jpg') 
-    #create image table with url and animal id 
+    gender = db.Column(db.String(255), nullable=False)
+    description = db.Column(db.String(255), nullable=False)
+    image_file = db.Column(db.String(255), default='default.jpg')
     sponsor_id = db.Column(db.Integer, db.ForeignKey('user.id'))
-
-    """ adoptions = db.relationship('Adoption', back_populates='animal')
-    sponsorships = db.relationship('Sponsorship', back_populates='animal') """
 
     def __repr__(self):
         return f'<Animal {self.name}>'
@@ -83,7 +67,5 @@ class Animal(db.Model):
             "gender": self.gender,
             "description": self.description,
             "image_file": self.image_file,
-            "sponsor_id": self.sponsor_id,
-            "applicants": [adoption.user_id for adoption in self.adoptions],
-            "sponsors": [sponsorship.user_id for sponsorship in self.sponsorships]
+            "sponsor_id": self.sponsor_id
         }

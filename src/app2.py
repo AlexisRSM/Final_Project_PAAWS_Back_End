@@ -25,7 +25,7 @@ MIGRATE = Migrate(app, db)
 db.init_app(app)
 CORS(app)
 
-# Decorator for routes requiring token authentication
+# Decorator for routes requiring token authentication ----New----
 def token_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
@@ -60,7 +60,7 @@ def register():
     db.session.commit()
     return jsonify({"message": "Registered successfully!"}), 201
 
-# User login
+# User login with jwt -- Missing explanation from lukasz
 @app.route('/login', methods=['POST'])
 def login():
     data = request.get_json()
