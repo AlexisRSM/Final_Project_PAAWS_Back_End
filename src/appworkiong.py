@@ -1,3 +1,4 @@
+#This was working together with models db 
 """
 This module takes care of starting the API Server, Loading the DB and Adding the endpoints
 """
@@ -13,10 +14,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from dotenv import load_dotenv #for enviroment variables
 #Import for errors
 from sqlalchemy.exc import SQLAlchemyError
-#Imports for cloudinary
-import cloudinary
-import cloudinary.uploader
-from cloudinary.utils import cloudinary_url
+
 
 
 app = Flask(__name__)
@@ -34,28 +32,7 @@ MIGRATE = Migrate(app, db)
 db.init_app(app)
 CORS(app)
 setup_admin(app)
-#######################confing cloudinary#########
-# Configuration
-api_secret = os.getenv("API_secret")     
-cloudinary.config( 
-    cloud_name = "daxlfwj8t", 
-    api_key = "665278816766412", 
-    api_secret = "<your_api_secret>", # Click 'View API Keys' above to copy your API secret
-    secure=True
-)
 
-# Upload an image
-upload_result = cloudinary.uploader.upload("https://res.cloudinary.com/demo/image/upload/getting-started/shoes.jpg",public_id="shoes")
-print(upload_result["secure_url"])
-
-# Optimize delivery by resizing and applying auto-format and auto-quality
-optimize_url, _ = cloudinary_url("shoes", fetch_format="auto", quality="auto")
-print(optimize_url)
-
-# Transform the image: auto-crop to square aspect_ratio
-auto_crop_url, _ = cloudinary_url("shoes", width=500, height=500, crop="auto", gravity="auto")
-print(auto_crop_url)
-#######################################################
 # Handle/serialize errors like a JSON object
 @app.errorhandler(APIException)
 def handle_invalid_usage(error):
