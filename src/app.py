@@ -11,7 +11,8 @@ from models import db, User, Animal,Adoption, Sponsorship
 #Added imports
 from werkzeug.security import generate_password_hash, check_password_hash
 from dotenv import load_dotenv #for enviroment variables
-
+#Import for errors
+from sqlalchemy.exc import SQLAlchemyError
 
 
 
@@ -58,15 +59,48 @@ def create_tables():
 
 
 #User Registration
-@app.route('/register', methods=['POST'])
+""" @app.route('/register', methods=['POST'])
 def register():
     data = request.get_json()
     hashed_password = generate_password_hash(data['password'], method='sha256')
     new_user = User(username=data['username'], email=data['email'], full_name=data['full_name'], password=hashed_password)
     db.session.add(new_user)
     db.session.commit()
-    return jsonify({"message": "Registered successfully!"}), 201
+    return jsonify({"message": "Registered successfully!"}), 201 """
+#Another resgistation test
+@app.route('/create-user', methods=['POST'])
+def create_user():
+    data = request.get_json()
 
+    # Extract data from the JSON payload
+    username = data.get('username')
+    full_name = data.get('full_name')
+    email = data.get('email')
+    password = data.get('password')
+    phone_number = data.get('phone_number', None)
+    is_admin = data.get('is_admin', False)
+    
+    if not username or not full_name or not email or not password:
+        return jsonify({'error': 'Missing required fields'}), 400
+
+    # Hash the password
+    hashed_password = generate_password_hash(password)
+
+    # Create a new user instance
+    new_user = User(
+        username=username,
+        full_name=full_name,
+        email=email,
+        password=hashed_password,
+        phone_number=phone_number,
+        is_admin=is_admin
+    )
+
+    # Add the new user to the database and commit
+    db.session.add(new_user)
+    db.session.commit()
+
+    return jsonify({'message': 'User created successfully!', 'user': new_user.serialize()}), 201
 # User Profile Route
 
 """ @token_required (change order to work)"""

@@ -1,3 +1,4 @@
+#this model was working with aiven db sucessfully and acepted route create user with small error due to serialize
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 
@@ -8,9 +9,9 @@ class Adoption(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     animal_id = db.Column(db.Integer, db.ForeignKey('animal.id'), nullable=False)
-    adoption_date = db.Column(db.DateTime, default=datetime.now)
+    adoption_date = db.Column(db.DateTime, default=datetime.now())
     adoption_status = db.Column(db.String(255), default='Pending')
-    form_data = db.Column(db.String(255))
+    form_data = db.Column(db.String(255)) 
 
     # Relationship with User and Animal
     user = db.relationship('User', back_populates='adoptions')
@@ -20,16 +21,6 @@ class Adoption(db.Model):
 
     def __repr__(self):
         return f'<Adoption User {self.user_id} adopts Animal {self.animal_id}>'
-
-    def serialize(self):
-        return {
-            "id": self.id,
-            "user_id": self.user_id,
-            "animal_id": self.animal_id,
-            "adoption_date": self.adoption_date.isoformat() if self.adoption_date else None,
-            "adoption_status": self.adoption_status,
-            "form_data": self.form_data
-        }
 
 # Model for Sponsorships
 class Sponsorship(db.Model):
@@ -47,15 +38,6 @@ class Sponsorship(db.Model):
 
     def __repr__(self):
         return f'<Sponsorship User {self.user_id} sponsors Animal {self.animal_id} with {self.sponsorship_amount}>'
-
-    def serialize(self):
-        return {
-            "id": self.id,
-            "user_id": self.user_id,
-            "animal_id": self.animal_id,
-            "sponsorship_amount": self.sponsorship_amount,
-            "sponsorship_date": self.sponsorship_date.isoformat() if self.sponsorship_date else None
-        }
 
 # Model for Users
 class User(db.Model):
@@ -76,18 +58,6 @@ class User(db.Model):
 
     def __repr__(self):
         return f'<User {self.username}>'
-
-    def serialize(self):
-        return {
-            "id": self.id,
-            "username": self.username,
-            "full_name": self.full_name,
-            "email": self.email,
-            "phone_number": self.phone_number,
-            "is_admin": self.is_admin,
-            "current_spending": self.current_spending,
-            "total_spent": self.total_spent
-        }
 
 # Model for Animals
 class Animal(db.Model):
@@ -122,10 +92,3 @@ class AnimalImage(db.Model):
 
     def __repr__(self):
         return f'<AnimalImage {self.image_url}>'
-
-    def serialize(self):
-        return {
-            "id": self.id,
-            "animal_id": self.animal_id,
-            "image_url": self.image_url
-        }
