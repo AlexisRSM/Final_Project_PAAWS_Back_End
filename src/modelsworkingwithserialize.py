@@ -10,12 +10,11 @@ class Adoption(db.Model):
     animal_id = db.Column(db.Integer, db.ForeignKey('animal.id'), nullable=False)
     adoption_date = db.Column(db.DateTime, default=datetime.now)
     adoption_status = db.Column(db.String(255), default='Pending')
-    form_id = db.Column(db.Integer, db.ForeignKey('adoption_form.id'))  # Foreign Key to AdoptionForm
+    form_data = db.Column(db.String(255))
 
     # Relationship with User and Animal
     user = db.relationship('User', back_populates='adoptions')
     animal = db.relationship('Animal', back_populates='adoptions')
-    form = db.relationship('AdoptionForm', back_populates='adoption')
 
     __table_args__ = (db.UniqueConstraint('user_id', 'animal_id', name='uq_user_animal_adoption'),)
 
@@ -29,48 +28,7 @@ class Adoption(db.Model):
             "animal_id": self.animal_id,
             "adoption_date": self.adoption_date.isoformat() if self.adoption_date else None,
             "adoption_status": self.adoption_status,
-            "form": self.form.serialize() if self.form else None
-        }
-
-# Model for Adoption Forms
-class AdoptionForm(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    animal_name = db.Column(db.String(255), nullable=False)
-    animal_reference = db.Column(db.String(255), nullable=False)
-    first_name = db.Column(db.String(255), nullable=False)
-    last_name = db.Column(db.String(255), nullable=False)
-    email = db.Column(db.String(255), nullable=False)
-    phone_number = db.Column(db.String(255), nullable=False)
-    first_time_adopting = db.Column(db.String(255), nullable=False)
-    already_have_pets = db.Column(db.String(255), nullable=True)  # Made nullable
-    current_pets_description = db.Column(db.Text, nullable=True)  # Made nullable
-    interest_reason = db.Column(db.Text, nullable=False)
-    met_animal = db.Column(db.String(255), nullable=False)
-    space_for_play = db.Column(db.String(255), nullable=False)
-    able_to_front_vet_bills = db.Column(db.String(255), nullable=False)
-
-    # Relationship with Adoption
-    adoption = db.relationship('Adoption', back_populates='form', uselist=False)
-
-    def __repr__(self):
-        return f'<AdoptionForm {self.first_name} {self.last_name}>'
-
-    def serialize(self):
-        return {
-            "id": self.id,
-            "animal_name": self.animal_name,
-            "animal_reference": self.animal_reference,
-            "first_name": self.first_name,
-            "last_name": self.last_name,
-            "email": self.email,
-            "phone_number": self.phone_number,
-            "first_time_adopting": self.first_time_adopting,
-            "already_have_pets": self.already_have_pets,
-            "current_pets_description": self.current_pets_description,
-            "interest_reason": self.interest_reason,
-            "met_animal": self.met_animal,
-            "space_for_play": self.space_for_play,
-            "able_to_front_vet_bills": self.able_to_front_vet_bills
+            "form_data": self.form_data
         }
 
 # Model for Sponsorships
@@ -140,13 +98,6 @@ class Animal(db.Model):
     description = db.Column(db.String(255), nullable=False)
     sponsor_id = db.Column(db.Integer, db.ForeignKey('user.id'))
 
-    # New fields
-    location = db.Column(db.String(255), nullable=True)
-    life_stage = db.Column(db.String(255), nullable=True)
-    weight = db.Column(db.String(255), nullable=True)
-    breed = db.Column(db.String(255), nullable=True)
-    known_illness = db.Column(db.String(255), nullable=True)  # Also can be named "health_issues"
-
     # Relationships with Adoption and Sponsorship
     adoptions = db.relationship('Adoption', back_populates='animal')
     sponsorships = db.relationship('Sponsorship', back_populates='animal')
@@ -161,11 +112,6 @@ class Animal(db.Model):
             "species": self.species,
             "gender": self.gender,
             "description": self.description,
-            "location": self.location,
-            "life_stage": self.life_stage,
-            "weight": self.weight,
-            "breed": self.breed,
-            "known_illness": self.known_illness
         }
 
 # Model for Animal Images

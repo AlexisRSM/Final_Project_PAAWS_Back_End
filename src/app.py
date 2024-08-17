@@ -14,9 +14,18 @@ from dotenv import load_dotenv #for enviroment variables
 #Import for errors
 from sqlalchemy.exc import SQLAlchemyError
 #Imports for cloudinary
-import cloudinary
-import cloudinary.uploader
-from cloudinary.utils import cloudinary_url
+""" import cloudinary """
+""" import cloudinary.uploader """
+
+""" from cloudinary.utils import cloudinary_url """
+#import for jwt
+from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
+from flask_jwt_extended import create_access_token
+from flask_jwt_extended import get_jwt_identity
+from flask_jwt_extended import jwt_required
+from flask_jwt_extended import JWTManager
+
+
 
 
 app = Flask(__name__)
@@ -24,7 +33,13 @@ app.url_map.strict_slashes = False
 
 # Load environment variables from .env file
 load_dotenv()
+#jwt authentication
+# Setup the Flask-JWT-Extended extension
+jwt_super_secret = os.getenv('JWT_SUPER_SECRET')
+app.config["JWT_SECRET_KEY"] = jwt_super_secret
+jwt = JWTManager(app)
 
+#DB
 db_url = os.getenv("DATABASE_URL")
 print(db_url)
 app.config['SQLALCHEMY_DATABASE_URI'] = db_url
@@ -36,16 +51,21 @@ CORS(app)
 setup_admin(app)
 #######################confing cloudinary#########
 # Configuration
-api_secret = os.getenv("API_secret")     
+cloudinary_cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME")
+cloudinary_api_key = os.getenv("CLOUDINARY_API_KEY")
+cloudinary_api_secret = os.getenv("CLOUDINARY_API_SECRET") 
+cloudinary_url = os.getenv("CLOUDINARY_URL")
+
 cloudinary.config( 
-    cloud_name = "daxlfwj8t", 
-    api_key = "665278816766412", 
-    api_secret = "<your_api_secret>", # Click 'View API Keys' above to copy your API secret
+    cloud_name = cloudinary_cloud_name, 
+    api_key = cloudinary_api_key , 
+    api_secret = cloudinary_api_secret , # Click 'View API Keys' above to copy your API secret
     secure=True
 )
+#
 
 # Upload an image
-upload_result = cloudinary.uploader.upload("https://res.cloudinary.com/demo/image/upload/getting-started/shoes.jpg",public_id="shoes")
+""" upload_result = cloudinary.uploader.upload("https://res.cloudinary.com/demo/image/upload/getting-started/shoes.jpg",public_id="shoes")
 print(upload_result["secure_url"])
 
 # Optimize delivery by resizing and applying auto-format and auto-quality
@@ -54,7 +74,7 @@ print(optimize_url)
 
 # Transform the image: auto-crop to square aspect_ratio
 auto_crop_url, _ = cloudinary_url("shoes", width=500, height=500, crop="auto", gravity="auto")
-print(auto_crop_url)
+print(auto_crop_url) """
 #######################################################
 # Handle/serialize errors like a JSON object
 @app.errorhandler(APIException)
@@ -75,11 +95,8 @@ def handle_hello():
 
     return jsonify(response_body), 200
 
-""" User Autentication """
+
 ####################Tests################
-""" @app.before_first_request
-def create_tables():
-    db.create_all() """
 
 
 #User Registration
@@ -91,6 +108,7 @@ def register():
     db.session.add(new_user)
     db.session.commit()
     return jsonify({"message": "Registered successfully!"}), 201 """
+
 #Another resgistation test
 @app.route('/create-user', methods=['POST'])
 def create_user():
@@ -125,6 +143,33 @@ def create_user():
     db.session.commit()
 
     return jsonify({'message': 'User created successfully!', 'user': new_user.serialize()}), 201
+##########################--end of register route--#############
+
+##########################--Login Route--#############
+
+@app.route('/login', methods=['POST'])
+def login():
+    data = request.get_json()
+    email = data.get('email')  # Changed from username to email
+    password = data.get('password')
+
+    # Fetch user from database by email
+    user = User.query.filter_by(email=email).first()
+
+    # Check if user exists and password is correct
+    if user and check_password_hash(user.password, password):
+        # Create a JWT token
+        access_token = create_access_token(identity=user.id)
+        return jsonify({
+            'token': access_token,
+            'user_id': user.id
+        }), 200
+    else:
+        return jsonify({"msg": "Invalid email or password"}), 401
+
+##########################--End of Login Route--#############
+
+
 # User Profile Route
 
 """ @token_required (change order to work)"""
