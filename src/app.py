@@ -7,7 +7,7 @@ from flask_migrate import Migrate
 from flask_cors import CORS
 from utils import APIException, generate_sitemap
 from admin import setup_admin
-from models import db, User, Animal,Adoption, Sponsorship 
+from models import db, User, Animal,Adoption, Sponsorship, AnimalImage, AdoptionForm
 #Added imports
 from werkzeug.security import generate_password_hash, check_password_hash
 from dotenv import load_dotenv #for enviroment variables
@@ -16,18 +16,16 @@ from functools import wraps
 #Import for errors
 from sqlalchemy.exc import SQLAlchemyError
 #Imports for cloudinary
-""" import cloudinary """
-""" import cloudinary.uploader """
+import cloudinary 
+import cloudinary.uploader 
+from cloudinary.utils import cloudinary_url 
 
-""" from cloudinary.utils import cloudinary_url """
 #import for jwt
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from flask_jwt_extended import create_access_token
 from flask_jwt_extended import get_jwt_identity
 from flask_jwt_extended import jwt_required
 from flask_jwt_extended import JWTManager
-
-
 
 
 app = Flask(__name__)
@@ -53,17 +51,17 @@ CORS(app)
 setup_admin(app)
 #######################confing cloudinary#########
 # Configuration
-""" cloudinary_cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME")
+cloudinary_cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME")
 cloudinary_api_key = os.getenv("CLOUDINARY_API_KEY")
 cloudinary_api_secret = os.getenv("CLOUDINARY_API_SECRET") 
-cloudinary_url = os.getenv("CLOUDINARY_URL") """
+cloudinary_url = os.getenv("CLOUDINARY_URL")
 
-""" cloudinary.config( 
+cloudinary.config( 
     cloud_name = cloudinary_cloud_name, 
     api_key = cloudinary_api_key , 
     api_secret = cloudinary_api_secret , # Click 'View API Keys' above to copy your API secret
     secure=True
-) """
+)
 #
 
 # Upload an image
@@ -220,7 +218,7 @@ def token_required(f):
     return decorated_function
 ############
 
-######################Decorator to check if the user is an admin ###################
+######################--Decorator to check if the user is an admin--###################
 def admin_required(f):
     @wraps(f)
     @jwt_required()
@@ -260,9 +258,9 @@ def delete_user():
 
 ###########################################Admin Features#########################
 
-#######################--Add Animals Admin--#################
+#######################--Add Animals Admin--###########working######
 # Add animal (admin only)
-@app.route('/admin_add_animal', methods=['POST'])
+""" @app.route('/admin_add_animal', methods=['POST'])
 @jwt_required()
 @admin_required
 def add_animal():
@@ -325,12 +323,85 @@ def delete_animal(animal_id):
         return jsonify({"message": "Animal deleted successfully!"}), 200
     except SQLAlchemyError as e:
         db.session.rollback()
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": str(e)}), 500 """
+
+######################################################################
+##############################--Add Animal with Image Test--########################################
+@app.route('/admin_add_animal', methods=['POST'])
+@jwt_required()
+@admin_required
+def add_animal():
+    current_user_id = get_jwt_identity()
+    user = User.query.get(current_user_id)
+
+    if not user.is_admin:
+        return jsonify({"message": "Access denied! You need to be an admin!"}), 403
+
+    data = request.form
+    name = data.get('name')
+    species = data.get('species')
+    gender = data.get('gender')
+    description = data.get('description')
+    location = data.get('location', None)
+    life_stage = data.get('life_stage', None)
+    weight = data.get('weight', None)
+    breed = data.get('breed', None)
+    known_illness = data.get('known_illness', None)
+
+    if not all([name, species, gender, description]):
+        return jsonify({'error': 'Missing required fields'}), 400
+
+    new_animal = Animal(
+        name=name,
+        species=species,
+        gender=gender,
+        description=description,
+        location=location,
+        life_stage=life_stage,
+        weight=weight,
+        breed=breed,
+        known_illness=known_illness
+    )
+
+    try:
+        db.session.add(new_animal)
+        db.session.commit()
+
+        # Handle file uploads
+        image_urls = []
+        if 'image' in request.files:
+            image_files = request.files.getlist('image')
+            if image_files:
+                for image_file in image_files:
+                    upload_result = cloudinary.uploader.upload(image_file)
+                    image_url = upload_result['secure_url']
+                    image_urls.append(image_url)
+                    # Add each image record to the database
+                    animal_image = AnimalImage(animal_id=new_animal.id, image_url=image_url)
+                    db.session.add(animal_image)
+
+        db.session.commit()
+        
+        return jsonify({'message': 'Animal created successfully!', 'animal': new_animal.serialize(), 'image_urls': image_urls}), 201
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
 
 ######################################################################
 
+##############################################---Public Routes---########################################################
+# Fetch all animals from the database
+@app.route('/animals', methods=['GET'])
+def list_all_animals():
+    try:
+        animals = Animal.query.all()
+        return jsonify([animal.serialize() for animal in animals]), 200
+    except SQLAlchemyError as e:
+        return jsonify({'error': str(e)}), 500
 
 
+########################################################################################################################
 
 
 # Print 10 animals test
