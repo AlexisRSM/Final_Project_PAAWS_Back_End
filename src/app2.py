@@ -70,6 +70,15 @@ def login():
         return jsonify({'token': token})
     return jsonify({"message": "Invalid credentials!"}), 401
 
+
+
+
+
+
+
+
+
+
 # User profile
 @app.route('/profile')
 @token_required

@@ -11,6 +11,8 @@ from models import db, User, Animal,Adoption, Sponsorship
 #Added imports
 from werkzeug.security import generate_password_hash, check_password_hash
 from dotenv import load_dotenv #for enviroment variables
+from functools import wraps
+
 #Import for errors
 from sqlalchemy.exc import SQLAlchemyError
 #Imports for cloudinary
@@ -51,17 +53,17 @@ CORS(app)
 setup_admin(app)
 #######################confing cloudinary#########
 # Configuration
-cloudinary_cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME")
+""" cloudinary_cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME")
 cloudinary_api_key = os.getenv("CLOUDINARY_API_KEY")
 cloudinary_api_secret = os.getenv("CLOUDINARY_API_SECRET") 
-cloudinary_url = os.getenv("CLOUDINARY_URL")
+cloudinary_url = os.getenv("CLOUDINARY_URL") """
 
-cloudinary.config( 
+""" cloudinary.config( 
     cloud_name = cloudinary_cloud_name, 
     api_key = cloudinary_api_key , 
     api_secret = cloudinary_api_secret , # Click 'View API Keys' above to copy your API secret
     secure=True
-)
+) """
 #
 
 # Upload an image
@@ -99,15 +101,51 @@ def handle_hello():
 ####################Tests################
 
 
-#User Registration
-""" @app.route('/register', methods=['POST'])
+#User Registration Primary
+@app.route('/register', methods=['POST'])
 def register():
     data = request.get_json()
-    hashed_password = generate_password_hash(data['password'], method='sha256')
-    new_user = User(username=data['username'], email=data['email'], full_name=data['full_name'], password=hashed_password)
-    db.session.add(new_user)
-    db.session.commit()
-    return jsonify({"message": "Registered successfully!"}), 201 """
+
+    # Extract data from the JSON payload
+    username = data.get('username')
+    full_name = data.get('full_name')
+    email = data.get('email')
+    password = data.get('password')
+    phone_number = data.get('phone_number', None)
+    is_admin = data.get('is_admin', False)
+    
+    if not username or not full_name or not email or not password:
+        return jsonify({'error': 'Missing required fields'}), 400
+
+    # Check for existing email and username
+    if User.query.filter_by(email=email).first():
+        return jsonify({'error': 'Email already exists'}), 400
+    if User.query.filter_by(username=username).first():
+        return jsonify({'error': 'Username already exists'}), 400
+
+    # Hash the password
+    hashed_password = generate_password_hash(password)
+
+    # Create a new user instance
+    new_user = User(
+        username=username,
+        full_name=full_name,
+        email=email,
+        password=hashed_password,
+        phone_number=phone_number,
+        is_admin=is_admin
+    )
+
+    try:
+        # Add the new user to the database and commit
+        db.session.add(new_user)
+        db.session.commit()
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+    return jsonify({'message': 'User created successfully!', 'user': new_user.serialize()}), 201
+##########################################################################
 
 #Another resgistation test
 @app.route('/create-user', methods=['POST'])
@@ -168,23 +206,133 @@ def login():
         return jsonify({"msg": "Invalid email or password"}), 401
 
 ##########################--End of Login Route--#############
+##########################-- Log Out--#######################
+
+#############################################################
+
+####################--Decorator for token required --#########################################
+def token_required(f):
+    @wraps(f)
+    @jwt_required()
+    def decorated_function(*args, **kwargs):
+        current_user = get_jwt_identity()  # Extracts the current user's identity from the token
+        return f(*args, **kwargs)
+    return decorated_function
+############
+
+######################Decorator to check if the user is an admin ###################
+def admin_required(f):
+    @wraps(f)
+    @jwt_required()
+    def wrapper(*args, **kwargs):
+        user_id = get_jwt_identity()  # Get the user ID from the JWT token
+        user = User.query.get(user_id)  # Fetch the user object from the database
+        if not user or not user.is_admin:
+            return jsonify({"message": "Access denied! You need to be an Admin!"}), 403
+        return f(*args, **kwargs)
+    return wrapper
+
+#################################################################################################
+##############################--Delete User--###############################
+# Delete user account
+@app.route('/delete_user', methods=['DELETE'])
+@jwt_required() 
+def delete_user():
+    current_user_id = get_jwt_identity()  # Extract the current user’s ID from the token
+    user_to_delete = User.query.get(current_user_id)  # Fetch the user from the database
+
+    if not user_to_delete:
+        return jsonify({"error": "User not found!"}), 404
+
+    try:
+        db.session.delete(user_to_delete)
+        db.session.commit()
+        return jsonify({"message": "User account deleted successfully!"}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
 
 
-# User Profile Route
 
-""" @token_required (change order to work)"""
-""" @app.route('/profile')
-def profile(current_user):
-    sponsored_animals = [sponsorship.animal.serialize() for sponsorship in current_user.sponsorships]
-    adopted_animals = [adoption.animal.serialize() for adoption in current_user.adoptions]
-    return jsonify({
-        "user": current_user.serialize(),
-        "sponsored_animals": sponsored_animals,
-        "adopted_animals": adopted_animals
-    })
-"""
+############################ User Profile Route######################################################
 
-#Test Get all animals
+
+
+###########################################Admin Features#########################
+
+#######################--Add Animals Admin--#################
+# Add animal (admin only)
+@app.route('/admin_add_animal', methods=['POST'])
+@jwt_required()
+@admin_required
+def add_animal():
+    current_user_id = get_jwt_identity()
+    user = User.query.get(current_user_id)
+
+    if not user.is_admin:
+        return jsonify({"message": "Access denied! You need to be an admin!"}), 403
+
+    data = request.get_json()
+    name = data.get('name')
+    species = data.get('species')
+    gender = data.get('gender')
+    description = data.get('description')
+    location = data.get('location', None)
+    life_stage = data.get('life_stage', None)
+    weight = data.get('weight', None)
+    breed = data.get('breed', None)
+    known_illness = data.get('known_illness', None)
+
+    if not all([name, species, gender, description]):
+        return jsonify({'error': 'Missing required fields'}), 400
+
+    new_animal = Animal(
+        name=name,
+        species=species,
+        gender=gender,
+        description=description,
+        location=location,
+        life_stage=life_stage,
+        weight=weight,
+        breed=breed,
+        known_illness=known_illness
+    )
+
+    try:
+        db.session.add(new_animal)
+        db.session.commit()
+        return jsonify({'message': 'Animal created successfully!', 'animal': new_animal.serialize()}), 201
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+##############################################################
+
+############################----Delete Animal----###################
+@app.route('/admin_delete_animal/<int:animal_id>', methods=['DELETE'])
+@jwt_required()  # Ensure the request has a valid JWT token
+@admin_required  # Ensure the authenticated user is an admin
+def delete_animal(animal_id):
+    # Fetch the animal from the database by its ID
+    animal = Animal.query.get(animal_id)
+
+    if not animal:
+        return jsonify({"error": "Animal not found!"}), 404
+
+    try:
+        # Delete the animal from the database
+        db.session.delete(animal)
+        db.session.commit()
+        return jsonify({"message": "Animal deleted successfully!"}), 200
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
+######################################################################
+
+
+
+
+
 # Print 10 animals test
 @app.route('/api/animals', methods=['GET'])
 def get_animals():
