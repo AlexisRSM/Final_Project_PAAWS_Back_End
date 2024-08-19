@@ -103,13 +103,11 @@ class Sponsorship(db.Model):
 class User(db.Model):
     __tablename__ = 'user'
     id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(255), unique=True, nullable=True) # Changed to True
-    first_name = db.Column(db.String(255),nullable=False) #Added
-    last_name = db.Column(db.String(255),nullable=False) #Added
-    #full_name = db.Column(db.String(255), nullable=False) voided
+    username = db.Column(db.String(255), unique=True, nullable=False)
+    full_name = db.Column(db.String(255), nullable=False)
     email = db.Column(db.String(255), unique=True, nullable=False)
     password = db.Column(db.String(255), nullable=False)
-    phone_number = db.Column(db.String(255),unique=True,nullable=True) #Added unique and nullable
+    phone_number = db.Column(db.String(255))
     is_admin = db.Column(db.Boolean, default=False)
     current_spending = db.Column(db.String(255), default='0')
     total_spent = db.Column(db.String(255), default='0')
@@ -123,12 +121,11 @@ class User(db.Model):
 
     def serialize(self):
         return {
-            #might want to add usarname later
-            'id': self.id,
-            'first_name': self.first_name,
-            'last_name': self.last_name,
-            'email': self.email,
-            'phone_number': self.phone_number,
+            "id": self.id,
+            "username": self.username,
+            "full_name": self.full_name,
+            "email": self.email,
+            "phone_number": self.phone_number,
             "is_admin": self.is_admin,
             "current_spending": self.current_spending,
             "total_spent": self.total_spent
@@ -148,15 +145,11 @@ class Animal(db.Model):
     life_stage = db.Column(db.String(255), nullable=True)
     weight = db.Column(db.String(255), nullable=True)
     breed = db.Column(db.String(255), nullable=True)
-    known_illness = db.Column(db.String(255), nullable=True)  
+    known_illness = db.Column(db.String(255), nullable=True)  # Also can be named "health_issues"
 
-    # Relationships with Adoption and Sponsorship and Images
+    # Relationships with Adoption and Sponsorship
     adoptions = db.relationship('Adoption', back_populates='animal')
     sponsorships = db.relationship('Sponsorship', back_populates='animal')
-    images = db.relationship('AnimalImage', back_populates='animal')
-
-    # Relationship with AnimalImage
-    #(might want to implement to solve problem deleting pets and images cascade automatically) images = db.relationship('AnimalImage', backref='animal', cascade='all, delete-orphan')
 
     def __repr__(self):
         return f'<Animal {self.name}>'
@@ -172,8 +165,7 @@ class Animal(db.Model):
             "life_stage": self.life_stage,
             "weight": self.weight,
             "breed": self.breed,
-            "known_illness": self.known_illness,
-            "images": [image.serialize() for image in self.images]
+            "known_illness": self.known_illness
         }
 
 # Model for Animal Images
@@ -181,9 +173,6 @@ class AnimalImage(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     animal_id = db.Column(db.Integer, db.ForeignKey('animal.id'), nullable=False)
     image_url = db.Column(db.String(255), nullable=False)
-
-    # Relationship with Animal
-    animal = db.relationship('Animal', back_populates='images')
 
     def __repr__(self):
         return f'<AnimalImage {self.image_url}>'

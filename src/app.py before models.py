@@ -26,7 +26,7 @@ from flask_jwt_extended import create_access_token
 from flask_jwt_extended import get_jwt_identity
 from flask_jwt_extended import jwt_required
 from flask_jwt_extended import JWTManager
-import stripe
+
 
 app = Flask(__name__)
 app.url_map.strict_slashes = False
@@ -59,18 +59,22 @@ cloudinary_url = os.getenv("CLOUDINARY_URL")
 cloudinary.config( 
     cloud_name = cloudinary_cloud_name, 
     api_key = cloudinary_api_key , 
-    api_secret = cloudinary_api_secret ,
+    api_secret = cloudinary_api_secret , # Click 'View API Keys' above to copy your API secret
     secure=True
 )
+#
 
-#Stripe config#
-stripe_secret_key = os.getenv("SECRET_KEY")
-stripe_publishable_key = os.getenv("PUBLISHABLE_KEY")
+# Upload an image
+""" upload_result = cloudinary.uploader.upload("https://res.cloudinary.com/demo/image/upload/getting-started/shoes.jpg",public_id="shoes")
+print(upload_result["secure_url"])
 
-stripe.api_key=stripe_secret_key
-STRIPE_TEST_PUBLISHABLE_KEY=stripe_publishable_key
+# Optimize delivery by resizing and applying auto-format and auto-quality
+optimize_url, _ = cloudinary_url("shoes", fetch_format="auto", quality="auto")
+print(optimize_url)
 
-
+# Transform the image: auto-crop to square aspect_ratio
+auto_crop_url, _ = cloudinary_url("shoes", width=500, height=500, crop="auto", gravity="auto")
+print(auto_crop_url) """
 #######################################################
 # Handle/serialize errors like a JSON object
 @app.errorhandler(APIException)
@@ -91,36 +95,39 @@ def handle_hello():
 
     return jsonify(response_body), 200
 
+
 ####################Tests################
 
-#User Registration Primary - db v2 working (check response 0)
+
+#User Registration Primary
 @app.route('/register', methods=['POST'])
 def register():
     data = request.get_json()
-    
+
     # Extract data from the JSON payload
-    first_name = data.get('first_name')
-    last_name = data.get('last_name')
+    username = data.get('username')
+    full_name = data.get('full_name')
     email = data.get('email')
     password = data.get('password')
     phone_number = data.get('phone_number', None)
     is_admin = data.get('is_admin', False)
     
-    # Validate required fields
-    if not first_name or not last_name or not email or not password:
+    if not username or not full_name or not email or not password:
         return jsonify({'error': 'Missing required fields'}), 400
 
-    # Check for existing email
+    # Check for existing email and username
     if User.query.filter_by(email=email).first():
         return jsonify({'error': 'Email already exists'}), 400
+    if User.query.filter_by(username=username).first():
+        return jsonify({'error': 'Username already exists'}), 400
 
     # Hash the password
     hashed_password = generate_password_hash(password)
 
     # Create a new user instance
     new_user = User(
-        first_name=first_name,
-        last_name=last_name,
+        username=username,
+        full_name=full_name,
         email=email,
         password=hashed_password,
         phone_number=phone_number,
@@ -136,11 +143,10 @@ def register():
         return jsonify({'error': str(e)}), 500
 
     return jsonify({'message': 'User created successfully!', 'user': new_user.serialize()}), 201
-
 ##########################################################################
 
 #Another resgistation test
-""" @app.route('/create-user', methods=['POST'])
+@app.route('/create-user', methods=['POST'])
 def create_user():
     data = request.get_json()
 
@@ -172,14 +178,15 @@ def create_user():
     db.session.add(new_user)
     db.session.commit()
 
-    return jsonify({'message': 'User created successfully!', 'user': new_user.serialize()}), 201 """
+    return jsonify({'message': 'User created successfully!', 'user': new_user.serialize()}), 201
 ##########################--end of register route--#############
 
-##########################--Login Route-- db v2 working
-@app.route('/login', methods=['POST']) 
+##########################--Login Route--#############
+
+@app.route('/login', methods=['POST'])
 def login():
     data = request.get_json()
-    email = data.get('email')
+    email = data.get('email')  # Changed from username to email
     password = data.get('password')
 
     # Fetch user from database by email
@@ -198,17 +205,10 @@ def login():
 
 ##########################--End of Login Route--#############
 ##########################-- Log Out--#######################
-@app.route('/logout', methods=['POST'])
-@jwt_required()
-def logout():
-    # Could also black list in the db (too much trouble)
-    
-    #lets give the user a confirmation 
-    return jsonify({"message": "Successfully logged out"}), 200
 
 #############################################################
 
-####################--Decorator for token required --db v2 working #########################################
+####################--Decorator for token required --#########################################
 def token_required(f):
     @wraps(f)
     @jwt_required()
@@ -218,7 +218,7 @@ def token_required(f):
     return decorated_function
 ############
 
-######################--Decorator to check if the user is an admin---db v2 working -###################
+######################--Decorator to check if the user is an admin--###################
 def admin_required(f):
     @wraps(f)
     @jwt_required()
@@ -231,9 +231,8 @@ def admin_required(f):
     return wrapper
 
 #################################################################################################
-
 ##############################--Delete User--###############################
-# Delete user account-- db v2 working
+# Delete user account
 @app.route('/delete_user', methods=['DELETE'])
 @jwt_required() 
 def delete_user():
@@ -254,19 +253,6 @@ def delete_user():
 
 
 ############################ User Profile Route######################################################
-@app.route('/profile', methods=['GET'])
-@jwt_required()
-def get_user_profile():
-    # Get the current user's identity from the JWT token
-    user_id = get_jwt_identity()
-
-    # Fetch the user from the database
-    user = User.query.get(user_id)
-    if not user:
-        return jsonify({"error": "User not found!"}), 404
-
-    # Return the user profile information
-    return jsonify(user.serialize()), 200
 
 
 
@@ -340,7 +326,7 @@ def delete_animal(animal_id):
         return jsonify({"error": str(e)}), 500 """
 
 ######################################################################
-##############################--Add Animal with Image Test- db v2 working (small problem with known illness)-########################################
+##############################--Add Animal with Image Test--########################################
 @app.route('/admin_add_animal', methods=['POST'])
 @jwt_required()
 @admin_required
@@ -403,175 +389,6 @@ def add_animal():
 
 
 ######################################################################
-#Delete Animal Admin Only ---v2 db working and deleting pictures
-""" 
-@app.route('/admin_delete_animal/<int:animal_id>', methods=['DELETE'])
-@jwt_required()
-@admin_required
-def delete_animal(animal_id):
-    current_user_id = get_jwt_identity()
-    user = User.query.get(current_user_id)
-
-    if not user.is_admin:
-        return jsonify({"message": "Access denied! You need to be an admin!"}), 403
-
-    animal = Animal.query.get(animal_id)
-    if not animal:
-        return jsonify({"message": "Animal not found"}), 404
-
-    try:
-        # Delete associated images first
-        AnimalImage.query.filter_by(animal_id=animal_id).delete()
-
-        # Then delete the animal
-        db.session.delete(animal)
-        db.session.commit()
-
-        return jsonify({"message": "Animal and associated images deleted successfully"}), 200
-    except SQLAlchemyError as e:
-        db.session.rollback()
-        return jsonify({"error": str(e)}), 500 """
-
-#####################################################################
-
-#Delete Animal Admin Only  and Images From cloudinary---v2 db working and deleting pictures
-#Trying route to delete animal and animal images from cloudinary when deleting animal
-@app.route('/admin_delete_animal/<int:animal_id>', methods=['DELETE'])
-@jwt_required()
-@admin_required
-def delete_animal(animal_id):
-    current_user_id = get_jwt_identity()
-    user = User.query.get(current_user_id)
-
-    if not user.is_admin:
-        return jsonify({"message": "Access denied! You need to be an admin!"}), 403
-
-    animal = Animal.query.get(animal_id)
-    if not animal:
-        return jsonify({"message": "Animal not found"}), 404
-
-    try:
-        # Get associated images
-        images = AnimalImage.query.filter_by(animal_id=animal_id).all()
-        
-        # Delete images from Cloudinary
-        for image in images:
-            try:
-                # Extract the public ID from the image URL
-                public_id = image.image_url.split('/')[-1].split('.')[0]  # Adjust if needed
-                cloudinary.uploader.destroy(public_id)
-            except CloudinaryError as e:
-                # Log the error or handle it accordingly
-                print(f"Failed to delete image from Cloudinary: {e}")
-
-        # Delete images from the database
-        AnimalImage.query.filter_by(animal_id=animal_id).delete()
-
-        # Then delete the animal
-        db.session.delete(animal)
-        db.session.commit()
-
-        return jsonify({"message": "Animal and associated images deleted successfully"}), 200
-    except SQLAlchemyError as e:
-        db.session.rollback()
-        return jsonify({"error": str(e)}), 500
-############################################################################
-
-#####################################--Admin Update Animal--#######################################
-@app.route('/admin_update_animal/<int:animal_id>', methods=['PUT'])
-@jwt_required()
-@admin_required
-def update_animal(animal_id):
-    current_user_id = get_jwt_identity()
-    user = User.query.get(current_user_id)
-
-    if not user.is_admin:
-        return jsonify({"message": "Access denied! You need to be an admin!"}), 403
-
-    # Fetch the animal to update
-    animal = Animal.query.get(animal_id)
-    if not animal:
-        return jsonify({"error": "Animal not found!"}), 404
-
-    data = request.get_json()
-    name = data.get('name')
-    species = data.get('species')
-    gender = data.get('gender')
-    description = data.get('description')
-    location = data.get('location', None)
-    life_stage = data.get('life_stage', None)
-    weight = data.get('weight', None)
-    breed = data.get('breed', None)
-    known_illness = data.get('known_illness', None)
-
-    # Validate required fields
-    if not all([name, species, gender, description]):
-        return jsonify({'error': 'Missing required fields'}), 400
-
-    # Update the animal attributes
-    animal.name = name
-    animal.species = species
-    animal.gender = gender
-    animal.description = description
-    animal.location = location
-    animal.life_stage = life_stage
-    animal.weight = weight
-    animal.breed = breed
-    animal.known_illness = known_illness
-
-    try:
-        db.session.commit()
-        return jsonify({'message': 'Animal updated successfully!', 'animal': animal.serialize()}), 200
-    except SQLAlchemyError as e:
-        db.session.rollback()
-        return jsonify({'error': str(e)}), 500
-
-############################################################################
-
-#####################################---Stripe Payment Route--#######################################
-@app.route('/payment', methods=['POST'])
-@jwt_required()
-def process_payment():
-    current_user_id = get_jwt_identity()
-    user = User.query.get(current_user_id)
-    
-    if not user:
-        return jsonify({"error": "User not found!"}), 404
-
-    data = request.get_json()
-    amount = data.get('amount')
-    currency = data.get('currency', 'usd')
-    payment_method_id = data.get('payment_method_id')
-    description = data.get('description', 'Payment for adoption/sponsorship')
-    return_url = data.get('return_url')  # URL to redirect after payment
-
-    if not all([amount, payment_method_id, return_url]):
-        return jsonify({'error': 'Missing required fields'}), 400
-
-    try:
-        payment_intent = stripe.PaymentIntent.create(
-            amount=amount,
-            currency=currency,
-            payment_method=payment_method_id,
-            confirmation_method='manual',
-            confirm=True,
-            description=description,
-            return_url=return_url  # Specify the return URL here
-        )
-
-        return jsonify({
-            'payment_intent': payment_intent.id,
-            'status': payment_intent.status,
-            'next_action': payment_intent.next_action  # Helpful for client-side handling
-        }), 200
-
-    except stripe.error.CardError as e:
-        return jsonify({'error': str(e)}), 400
-    except stripe.error.StripeError as e:
-        return jsonify({'error': str(e)}), 500
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-############################################################################
 
 ##############################################---Public Routes---########################################################
 # Fetch all animals from the database
@@ -583,7 +400,9 @@ def list_all_animals():
     except SQLAlchemyError as e:
         return jsonify({'error': str(e)}), 500
 
+
 ########################################################################################################################
+
 
 # Print 10 animals test
 @app.route('/api/animals', methods=['GET'])
