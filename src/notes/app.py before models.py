@@ -404,7 +404,7 @@ def list_all_animals():
 ########################################################################################################################
 
 
-# Print 10 animals test tyest
+# Print 10 animals test
 @app.route('/api/animals', methods=['GET'])
 def get_animals():
     animals = Animal.query.limit(10).all()
