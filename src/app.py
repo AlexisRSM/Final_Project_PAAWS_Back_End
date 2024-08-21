@@ -33,7 +33,7 @@ app.url_map.strict_slashes = False
 
 # Load environment variables from .env file
 load_dotenv()
-#jwt authentication
+
 # Setup the Flask-JWT-Extended extension
 jwt_super_secret = os.getenv('JWT_SUPER_SECRET')
 app.config["JWT_SECRET_KEY"] = jwt_super_secret
@@ -41,7 +41,7 @@ jwt = JWTManager(app)
 
 #DB
 db_url = os.getenv("DATABASE_URL")
-print(db_url)
+#print(db_url)
 app.config['SQLALCHEMY_DATABASE_URI'] = db_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
@@ -49,8 +49,7 @@ MIGRATE = Migrate(app, db)
 db.init_app(app)
 CORS(app)
 setup_admin(app)
-#######################confing cloudinary#########
-# Configuration
+#######################-Cloudinary Confing--#########
 cloudinary_cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME")
 cloudinary_api_key = os.getenv("CLOUDINARY_API_KEY")
 cloudinary_api_secret = os.getenv("CLOUDINARY_API_SECRET") 
@@ -71,8 +70,7 @@ stripe.api_key=stripe_secret_key
 STRIPE_TEST_PUBLISHABLE_KEY=stripe_publishable_key
 
 
-#######################################################
-# Handle/serialize errors like a JSON object
+################# Handle/serialize errors like a JSON object#######
 @app.errorhandler(APIException)
 def handle_invalid_usage(error):
     return jsonify(error.to_dict()), error.status_code
@@ -254,9 +252,48 @@ def delete_user():
 
 
 ############################ User Profile Route######################################################
-@app.route('/profile', methods=['GET'])
+@app.route('/get_user_profile', methods=['GET'])
 @jwt_required()
 def get_user_profile():
+    # Get the current user's identity from the JWT token
+    user_id = get_jwt_identity()
+
+    # Querty the user from the db
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({"error": "User not found!"}), 404
+
+    # Query sponsored pets
+    sponsored_pets = Sponsorship.query.filter_by(user_id=user_id).all()
+    sponsored_pets_data = [sponsor.animal.serialize() for sponsor in sponsored_pets]
+
+    # Query adoptions
+    adoptions = Adoption.query.filter_by(user_id=user_id).all()
+    adoptions_data = [adopt.serialize() for adopt in adoptions]
+
+    # Prepare user profile response 🦧
+    user_profile_data = user.serialize()
+    user_profile_data['sponsored_pets'] = sponsored_pets_data
+    user_profile_data['adoptions'] = adoptions_data
+
+    return jsonify(user_profile_data), 200
+
+
+
+
+
+
+######################################################################################
+
+######################################################################################
+#Might be a nice idea to later get user bi id to manaage in admin!!!
+######################################################################################
+
+##################################### Get Single User Info ######################
+#Get User By JWT Token
+@app.route('/profile', methods=['GET'])  
+@jwt_required()
+def get_user_info():
     # Get the current user's identity from the JWT token
     user_id = get_jwt_identity()
 
@@ -400,7 +437,6 @@ def add_animal():
     except SQLAlchemyError as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
-
 
 ######################################################################
 #Delete Animal Admin Only ---v2 db working and deleting pictures
@@ -582,10 +618,19 @@ def list_all_animals():
         return jsonify([animal.serialize() for animal in animals]), 200
     except SQLAlchemyError as e:
         return jsonify({'error': str(e)}), 500
+#######################################################################
+#Get Single Animal
+@app.route('/animal/<int:animal_id>', methods=['GET'])
+def get_animal(animal_id):
+    # Fetch the animal from the database by its ID
+    animal = Animal.query.get(animal_id)
+    
+    if not animal:
+        return jsonify({"error": "Animal not found!"}), 404
 
-########################################################################################################################
-
-# Print 10 animals test
+    # Serialize the animal data
+    return jsonify(animal.serialize()), 200
+# Print 10 animals  first test
 @app.route('/api/animals', methods=['GET'])
 def get_animals():
     animals = Animal.query.limit(10).all()
