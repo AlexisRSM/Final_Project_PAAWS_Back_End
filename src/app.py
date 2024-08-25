@@ -716,12 +716,6 @@ def create_checkout_session():
 
     return jsonify({'url': checkout_session.url})
 
-
-
-
-############################################################################
-
-
 ##############################################---Public Routes---########################################################
 # Fetch all animals from the database
 @app.route('/animals', methods=['GET'])
