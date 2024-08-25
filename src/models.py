@@ -36,7 +36,7 @@ class Adoption(db.Model):
 class AdoptionForm(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     animal_name = db.Column(db.String(255), nullable=False)
-    animal_reference = db.Column(db.String(255), nullable=False)
+    animal_reference = db.Column(db.String(255), nullable=False)  #For animal chip or other later
     first_name = db.Column(db.String(255), nullable=False)
     last_name = db.Column(db.String(255), nullable=False)
     email = db.Column(db.String(255), nullable=False)
@@ -141,7 +141,7 @@ class Animal(db.Model):
     species = db.Column(db.String(255), nullable=False)
     gender = db.Column(db.String(255), nullable=False)
     description = db.Column(db.String(255), nullable=False)
-    sponsor_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    sponsor_id = db.Column(db.Integer, db.ForeignKey('user.id')) #Remover evitar cirar novo registo para animal se ouver sponsor novo
 
     # New fields
     location = db.Column(db.String(255), nullable=True)

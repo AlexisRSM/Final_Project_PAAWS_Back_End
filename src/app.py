@@ -2,6 +2,7 @@
 This module takes care of starting the API Server, Loading the DB and Adding the endpoints
 """
 import os
+
 from flask import Flask, request, jsonify, url_for
 from flask_migrate import Migrate
 from flask_cors import CORS
@@ -16,9 +17,9 @@ from functools import wraps
 #Import for errors
 from sqlalchemy.exc import SQLAlchemyError
 #Imports for cloudinary
-import cloudinary 
 import cloudinary.uploader 
 from cloudinary.utils import cloudinary_url 
+
 
 #import for jwt
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
@@ -252,7 +253,7 @@ def delete_user():
 
 
 ############################ User Profile Route######################################################
-@app.route('/get_user_profile', methods=['GET'])
+""" @app.route('/get_user_profile', methods=['GET'])
 @jwt_required()
 def get_user_profile():
     # Get the current user's identity from the JWT token
@@ -276,12 +277,45 @@ def get_user_profile():
     user_profile_data['sponsored_pets'] = sponsored_pets_data
     user_profile_data['adoptions'] = adoptions_data
 
+    return jsonify(user_profile_data), 200 """
+######################################################v4 get user profile (with animal images)#####
+@app.route('/get_user_profile', methods=['GET'])
+@jwt_required()
+def get_user_profile():
+    # Get the current user's identity from the JWT token
+    user_id = get_jwt_identity()
+
+    # Query the user from the db
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({"error": "User not found!"}), 404
+
+    # Query sponsored pets with associated animal data including images
+    sponsored_pets = Sponsorship.query.filter_by(user_id=user_id).all()
+    sponsored_pets_data = [
+        {
+            **sponsorship.serialize(),
+            "animal": sponsorship.animal.serialize()  # Include the serialized animal data with images
+        }
+        for sponsorship in sponsored_pets
+    ]
+
+    # Query adoptions with associated animal data including images
+    adoptions = Adoption.query.filter_by(user_id=user_id).all()
+    adoptions_data = [
+        {
+            **adoption.serialize(),
+            "animal": adoption.animal.serialize()  # Include the serialized animal data with images
+        }
+        for adoption in adoptions
+    ]
+
+    # Prepare user profile response
+    user_profile_data = user.serialize()
+    user_profile_data['sponsored_pets'] = sponsored_pets_data
+    user_profile_data['adoptions'] = adoptions_data
+
     return jsonify(user_profile_data), 200
-
-
-
-
-
 
 ######################################################################################
 
@@ -305,6 +339,115 @@ def get_user_info():
     # Return the user profile information
     return jsonify(user.serialize()), 200
 
+#Update user Info####################- Added v3
+@app.route('/update_user', methods=['PUT'])
+@jwt_required()
+def update_user():
+    # Get the current user's identity from the JWT token
+    user_id = get_jwt_identity()
+
+    # Fetch the user from the database
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({"error": "User not found!"}), 404
+
+    # Get the data from the request
+    data = request.get_json()
+
+    # Update user details with the provided data, only if they exist in the request
+    user.first_name = data.get('first_name', user.first_name)
+    user.last_name = data.get('last_name', user.last_name)
+    user.email = data.get('email', user.email)
+    user.phone_number = data.get('phone_number', user.phone_number)
+
+    # If password is provided, hash it before updating
+    if 'password' in data:
+        user.password = generate_password_hash(data['password'])
+
+    try:
+        # Save the updated user data to the database
+        db.session.commit()
+        return jsonify({"message": "User information updated successfully!", "user": user.serialize()}), 200
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
+#####---User/ Animal Related Features--########################
+
+#Test Route to adtop also ataches form
+@app.route('/adopt', methods=['POST'])
+@jwt_required()
+def create_adoption():
+    current_user_id = get_jwt_identity()
+    user = User.query.get(current_user_id)
+
+    if not user:
+        return jsonify({"error": "User not found!"}), 404
+
+    data = request.get_json()
+
+    # Extract data for the form
+    animal_id = data.get('animal_id')
+    animal_name = data.get('animal_name')
+    animal_reference = data.get('animal_reference')
+    first_name = data.get('first_name')
+    last_name = data.get('last_name')
+    email = data.get('email')
+    phone_number = data.get('phone_number')
+    first_time_adopting = data.get('first_time_adopting')
+    already_have_pets = data.get('already_have_pets')
+    current_pets_description = data.get('current_pets_description')
+    interest_reason = data.get('interest_reason')
+    met_animal = data.get('met_animal')
+    space_for_play = data.get('space_for_play')
+    able_to_front_vet_bills = data.get('able_to_front_vet_bills')
+
+    # Validate required fields
+    if not all([animal_id, animal_name, first_name, last_name, email, first_time_adopting, interest_reason, met_animal, space_for_play, able_to_front_vet_bills]):
+        return jsonify({'error': 'Missing required fields'}), 400
+
+    # Check if the animal exists
+    animal = Animal.query.get(animal_id)
+    if not animal:
+        return jsonify({'error': 'Animal not found'}), 404
+
+    # Create the adoption form
+    adoption_form = AdoptionForm(
+        animal_name=animal_name,
+        animal_reference=animal_reference,
+        first_name=first_name,
+        last_name=last_name,
+        email=email,
+        phone_number=phone_number,
+        first_time_adopting=first_time_adopting,
+        already_have_pets=already_have_pets,
+        current_pets_description=current_pets_description,
+        interest_reason=interest_reason,
+        met_animal=met_animal,
+        space_for_play=space_for_play,
+        able_to_front_vet_bills=able_to_front_vet_bills
+    )
+
+    try:
+        db.session.add(adoption_form)
+        db.session.commit()
+
+        # Create the adoption record
+        adoption = Adoption(
+            user_id=user.id,
+            animal_id=animal.id,
+            form_id=adoption_form.id,
+            adoption_status='Pending'
+        )
+
+        db.session.add(adoption)
+        db.session.commit()
+
+        return jsonify({'message': 'Adoption request submitted successfully!', 'adoption': adoption.serialize()}), 201
+
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
 
 
 ###########################################Admin Features#########################
@@ -563,6 +706,34 @@ def update_animal(animal_id):
         return jsonify({'error': str(e)}), 500
 
 ############################################################################
+#Delete single image from cloudinary and db working 🏆
+@app.route('/delete_image/<int:image_id>', methods=['DELETE'])
+@jwt_required()
+@admin_required
+def delete_image(image_id):
+    # Fetch the image record from the database by its ID
+    image = AnimalImage.query.get(image_id)
+
+    if not image:
+        return jsonify({"error": "Image not found!"}), 404
+
+    try:
+        # Extract the public ID from the image URL
+        public_id = image.image_url.split('/')[-1].split('.')[0]  # Extract the public ID
+
+        # Delete the image from Cloudinary
+        cloudinary.uploader.destroy(public_id)
+
+        # Delete the image record from the database
+        db.session.delete(image)
+        db.session.commit()
+
+        return jsonify({"message": "Image and associated data deleted successfully!"}), 200
+    except Exception as e:
+        return jsonify({"error": f"An error occurred: {str(e)}"}), 500
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        return jsonify({"error": f"Failed to delete image from the database: {str(e)}"}), 500
 
 #####################################---Stripe Payment Route--#######################################
 @app.route('/payment', methods=['POST'])
