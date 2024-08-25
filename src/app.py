@@ -734,9 +734,64 @@ def delete_image(image_id):
     except SQLAlchemyError as e:
         db.session.rollback()
         return jsonify({"error": f"Failed to delete image from the database: {str(e)}"}), 500
+#################################################################
+#Get All Adoptions
+@app.route('/adoptions', methods=['GET'])
+@jwt_required()
+@admin_required
+def get_all_adoptions():
+    try:
+        # Query all adoptions from the database
+        adoptions = Adoption.query.all()
+
+        # Serialize each adoption, including the associated animal and its images
+        adoptions_data = [
+            {
+                **adoption.serialize(),
+                "animal": {
+                    **adoption.animal.serialize(),
+                    "images": [image.serialize() for image in adoption.animal.images]
+                }
+            }
+            for adoption in adoptions
+        ]
+
+        return jsonify(adoptions_data), 200
+
+    except SQLAlchemyError as e:
+        return jsonify({'error': str(e)}), 500
+
+#Update Adoption Status
+@app.route('/update_adoption_status/<int:adoption_id>', methods=['PUT'])
+@jwt_required()
+@admin_required
+def update_adoption_status(adoption_id):
+    # Fetch the adoption record by ID
+    adoption = Adoption.query.get(adoption_id)
+    if not adoption:
+        return jsonify({"error": "Adoption not found!"}), 404
+
+    # Get the new status from the request data
+    data = request.get_json()
+    new_status = data.get('adoption_status')
+
+    # Validate that the new status is provided
+    if not new_status:
+        return jsonify({'error': 'Missing required fields: adoption_status'}), 400
+
+    # Update the adoption status
+    adoption.adoption_status = new_status
+
+    try:
+        # Commit the changes to the database
+        db.session.commit()
+        return jsonify({"message": "Adoption status updated successfully!", "adoption": adoption.serialize()}), 200
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
 
 #####################################---Stripe Payment Route--#######################################
-@app.route('/payment', methods=['POST'])
+""" @app.route('/payment', methods=['POST'])
 @jwt_required()
 def process_payment():
     current_user_id = get_jwt_identity()
@@ -777,8 +832,84 @@ def process_payment():
     except stripe.error.StripeError as e:
         return jsonify({'error': str(e)}), 500
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': str(e)}), 500 """
 ############################################################################
+#Payment /sponsorship Route One Time
+@app.route('/sponsor/one-time', methods=['POST'])
+@jwt_required()
+def create_one_time_sponsorship():
+    current_user_id = get_jwt_identity()
+    user = User.query.get(current_user_id)
+
+    if not user:
+        return jsonify({"error": "User not found!"}), 404
+
+    data = request.get_json()
+
+    # Extract data for the sponsorship
+    animal_id = data.get('animal_id')
+    sponsorship_amount = data.get('sponsorship_amount')
+    payment_method_id = data.get('payment_method_id')
+    currency = data.get('currency', 'usd')
+
+    # Validate required fields
+    if not all([animal_id, sponsorship_amount, payment_method_id]):
+        return jsonify({'error': 'Missing required fields'}), 400
+
+    # Validate sponsorship amount
+    try:
+        sponsorship_amount = float(sponsorship_amount)
+        if sponsorship_amount <= 0:
+            return jsonify({'error': 'Sponsorship amount must be a positive number'}), 400
+    except ValueError:
+        return jsonify({'error': 'Invalid sponsorship amount'}), 400
+
+    # Check if the animal exists
+    animal = Animal.query.get(animal_id)
+    if not animal:
+        return jsonify({'error': 'Animal not found'}), 404
+
+    try:
+        # Process the payment through Stripe
+        payment_intent = stripe.PaymentIntent.create(
+            amount=int(sponsorship_amount * 100),  
+            currency=currency,
+            payment_method=payment_method_id,
+            confirmation_method='manual',
+            confirm=True,
+            description=f'One-time sponsorship for {animal.name}'
+        )
+
+        if payment_intent.status == 'requires_action':
+            
+            return jsonify({
+                'requires_action': True,
+                'payment_intent_client_secret': payment_intent.client_secret
+            }), 200
+
+        if payment_intent.status == 'succeeded':
+            
+            sponsorship = Sponsorship(
+                user_id=user.id,
+                animal_id=animal.id,
+                sponsorship_amount=sponsorship_amount,
+            )
+
+            db.session.add(sponsorship)
+            db.session.commit()
+
+            return jsonify({
+                'message': 'Sponsorship created successfully!',
+                'sponsorship': sponsorship.serialize()
+            }), 201
+
+    except stripe.error.CardError as e:
+        return jsonify({'error': f'Stripe error: {str(e)}'}), 400
+    except stripe.error.StripeError as e:
+        return jsonify({'error': f'Stripe error: {str(e)}'}), 500
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
 
 ##############################################---Public Routes---########################################################
 # Fetch all animals from the database
