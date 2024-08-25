@@ -2,7 +2,7 @@
 This module takes care of starting the API Server, Loading the DB and Adding the endpoints
 """
 import os
-
+import logging
 from flask import Flask, request, jsonify, url_for
 from flask_migrate import Migrate
 from flask_cors import CORS
@@ -373,7 +373,6 @@ def update_user():
         return jsonify({"error": str(e)}), 500
 
 #####---User/ Animal Related Features--########################
-
 #Test Route to adtop also ataches form
 @app.route('/adopt', methods=['POST'])
 @jwt_required()
@@ -667,36 +666,45 @@ def update_animal(animal_id):
     if not user.is_admin:
         return jsonify({"message": "Access denied! You need to be an admin!"}), 403
 
-    # Fetch the animal to update
     animal = Animal.query.get(animal_id)
     if not animal:
         return jsonify({"error": "Animal not found!"}), 404
 
-    data = request.get_json()
-    name = data.get('name')
-    species = data.get('species')
-    gender = data.get('gender')
-    description = data.get('description')
-    location = data.get('location', None)
-    life_stage = data.get('life_stage', None)
-    weight = data.get('weight', None)
-    breed = data.get('breed', None)
-    known_illness = data.get('known_illness', None)
+    data = request.form.to_dict()  # Extract form data
+    images = request.files.getlist('image')  # Extract files
 
-    # Validate required fields
-    if not all([name, species, gender, description]):
-        return jsonify({'error': 'Missing required fields'}), 400
+    # Ensure at least one field or image is provided for update
+    if not data and not images:
+        return jsonify({"error": "No data or images provided for update!"}), 400
 
-    # Update the animal attributes
-    animal.name = name
-    animal.species = species
-    animal.gender = gender
-    animal.description = description
-    animal.location = location
-    animal.life_stage = life_stage
-    animal.weight = weight
-    animal.breed = breed
-    animal.known_illness = known_illness
+    # Log received data and images for debugging
+    print(f"Received data: {data}")
+    print(f"Received images: {images}")
+
+    # Update the animal attributes only if new values are provided
+    animal.name = data.get('name', animal.name)
+    animal.species = data.get('species', animal.species)
+    animal.gender = data.get('gender', animal.gender)
+    animal.description = data.get('description', animal.description)
+    animal.location = data.get('location', animal.location)
+    animal.life_stage = data.get('life_stage', animal.life_stage)
+    animal.weight = data.get('weight', animal.weight)
+    animal.breed = data.get('breed', animal.breed)
+    animal.known_illness = data.get('known_illness', animal.known_illness)
+
+    # Handle image uploads if any
+    if images:
+        try:
+            for image in images:
+                upload_result = cloudinary.uploader.upload(image)
+                image_url = upload_result['secure_url']
+
+                # Create a new AnimalImage record for each uploaded image
+                new_image = AnimalImage(animal_id=animal.id, image_url=image_url)
+                db.session.add(new_image)
+
+        except Exception as e:
+            return jsonify({"error": f"Failed to upload images: {str(e)}"}), 500
 
     try:
         db.session.commit()
@@ -704,6 +712,7 @@ def update_animal(animal_id):
     except SQLAlchemyError as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
+
 
 ############################################################################
 #Delete single image from cloudinary and db working 🏆
@@ -835,7 +844,122 @@ def process_payment():
         return jsonify({'error': str(e)}), 500 """
 ############################################################################
 #Payment /sponsorship Route One Time
-@app.route('/sponsor/one-time', methods=['POST'])
+@app.route('/create-checkout-session', methods=['POST'])
+@jwt_required()
+def create_checkout_session():
+    current_user_id = get_jwt_identity()
+    user = User.query.get(current_user_id)
+
+    if not user:
+        return jsonify({"error": "User not found!"}), 404
+
+    data = request.get_json()
+
+    animal_id = data.get('animal_id')
+    sponsorship_amount = data.get('sponsorship_amount')
+    currency = data.get('currency', 'usd')
+
+    # Validate required fields
+    if not all([animal_id, sponsorship_amount]):
+        return jsonify({'error': 'Missing required fields'}), 400
+
+    # Check if the animal exists
+    animal = Animal.query.get(animal_id)
+    if not animal:
+        return jsonify({'error': 'Animal not found'}), 404
+
+    try:
+        # Create a new Stripe Checkout session for one-time payment
+        session = stripe.checkout.Session.create(
+            payment_method_types=['card'],
+            line_items=[{
+                'price_data': {
+                    'currency': currency,
+                    'product_data': {
+                        'name': f'Sponsorship for {animal.name}',
+                    },
+                    'unit_amount': int(float(sponsorship_amount) * 100),  # Convert to cents
+                },
+                'quantity': 1,
+            }],
+            mode='payment',  # This is for one-time payments
+            success_url=url_for('payment_success', _external=True) + '?session_id={CHECKOUT_SESSION_ID}',
+            cancel_url=url_for('payment_cancel', _external=True),
+            customer_email=user.email,  # Optional: Automatically fill the user's email in Stripe Checkout
+        )
+
+        return jsonify({'id': session.id})
+
+    except Exception as e:
+        return jsonify(error=str(e)), 500
+
+#Payment /sponsorship Route Monthly Subscription
+@app.route('/create-subscription-session', methods=['POST'])
+@jwt_required()
+def create_subscription_session():
+    current_user_id = get_jwt_identity()
+    user = User.query.get(current_user_id)
+
+    if not user:
+        return jsonify({"error": "User not found!"}), 404
+
+    data = request.get_json()
+
+    animal_id = data.get('animal_id')
+    sponsorship_amount = data.get('sponsorship_amount')
+    currency = data.get('currency', 'usd')
+
+    # Validate required fields
+    if not all([animal_id, sponsorship_amount]):
+        return jsonify({'error': 'Missing required fields'}), 400
+
+    # Check if the animal exists
+    animal = Animal.query.get(animal_id)
+    if not animal:
+        return jsonify({'error': 'Animal not found'}), 404
+
+    try:
+        # Create a new Stripe Checkout session for recurring payments
+        session = stripe.checkout.Session.create(
+            payment_method_types=['card'],
+            line_items=[{
+                'price_data': {
+                    'currency': currency,
+                    'product_data': {
+                        'name': f'Monthly Sponsorship for {animal.name}',
+                    },
+                    'unit_amount': int(float(sponsorship_amount) * 100),  # Convert to cents
+                    'recurring': {
+                        'interval': 'month',  # Set to monthly
+                    },
+                },
+                'quantity': 1,
+            }],
+            mode='subscription',  # This is for recurring payments
+            success_url=url_for('payment_success', _external=True) + '?session_id={CHECKOUT_SESSION_ID}',
+            cancel_url=url_for('payment_cancel', _external=True),
+            customer_email=user.email,  # Optional: Automatically fill the user's email in Stripe Checkout
+        )
+
+        return jsonify({'id': session.id})
+
+    except Exception as e:
+        return jsonify(error=str(e)), 500
+
+
+@app.route('/payment-success')
+def payment_success():
+    # Handle post-payment success logic here
+    return "Payment was successful!"
+
+@app.route('/payment-cancel')
+def payment_cancel():
+    # Handle post-payment cancellation logic here
+    return "Payment was canceled."
+
+
+#First Attempt Stripe
+""" @app.route('/sponsor/one-time', methods=['POST'])
 @jwt_required()
 def create_one_time_sponsorship():
     current_user_id = get_jwt_identity()
@@ -909,7 +1033,7 @@ def create_one_time_sponsorship():
         return jsonify({'error': f'Stripe error: {str(e)}'}), 500
     except SQLAlchemyError as e:
         db.session.rollback()
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': str(e)}), 500 """
 
 ##############################################---Public Routes---########################################################
 # Fetch all animals from the database
