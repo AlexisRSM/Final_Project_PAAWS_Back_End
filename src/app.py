@@ -1,9 +1,6 @@
-"""
-This module takes care of starting the API Server, Loading the DB and Adding the endpoints
-"""
 import os
 import logging
-from flask import Flask, request, jsonify, url_for
+from flask import Flask, request, jsonify, url_for, redirect
 from flask_migrate import Migrate
 from flask_cors import CORS
 from utils import APIException, generate_sitemap
@@ -13,14 +10,11 @@ from models import db, User, Animal,Adoption, Sponsorship, AnimalImage, Adoption
 from werkzeug.security import generate_password_hash, check_password_hash
 from dotenv import load_dotenv #for enviroment variables
 from functools import wraps
-
 #Import for errors
 from sqlalchemy.exc import SQLAlchemyError
 #Imports for cloudinary
 import cloudinary.uploader 
 from cloudinary.utils import cloudinary_url 
-
-
 #import for jwt
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from flask_jwt_extended import create_access_token
@@ -81,15 +75,6 @@ def handle_invalid_usage(error):
 def sitemap():
     return generate_sitemap(app)
 
-@app.route('/user', methods=['GET'])
-def handle_hello():
-
-    response_body = {
-        "msg": "Hello, this is your GET /user response "
-    }
-
-    return jsonify(response_body), 200
-
 ####################Tests################
 
 #User Registration Primary - db v2 working (check response 0)
@@ -136,42 +121,6 @@ def register():
 
     return jsonify({'message': 'User created successfully!', 'user': new_user.serialize()}), 201
 
-##########################################################################
-
-#Another resgistation test
-""" @app.route('/create-user', methods=['POST'])
-def create_user():
-    data = request.get_json()
-
-    # Extract data from the JSON payload
-    username = data.get('username')
-    full_name = data.get('full_name')
-    email = data.get('email')
-    password = data.get('password')
-    phone_number = data.get('phone_number', None)
-    is_admin = data.get('is_admin', False)
-    
-    if not username or not full_name or not email or not password:
-        return jsonify({'error': 'Missing required fields'}), 400
-
-    # Hash the password
-    hashed_password = generate_password_hash(password)
-
-    # Create a new user instance
-    new_user = User(
-        username=username,
-        full_name=full_name,
-        email=email,
-        password=hashed_password,
-        phone_number=phone_number,
-        is_admin=is_admin
-    )
-
-    # Add the new user to the database and commit
-    db.session.add(new_user)
-    db.session.commit()
-
-    return jsonify({'message': 'User created successfully!', 'user': new_user.serialize()}), 201 """
 ##########################--end of register route--#############
 
 ##########################--Login Route-- db v2 working
@@ -205,8 +154,6 @@ def logout():
     #lets give the user a confirmation 
     return jsonify({"message": "Successfully logged out"}), 200
 
-#############################################################
-
 ####################--Decorator for token required --db v2 working #########################################
 def token_required(f):
     @wraps(f)
@@ -229,8 +176,6 @@ def admin_required(f):
         return f(*args, **kwargs)
     return wrapper
 
-#################################################################################################
-
 ##############################--Delete User--###############################
 # Delete user account-- db v2 working
 @app.route('/delete_user', methods=['DELETE'])
@@ -250,35 +195,8 @@ def delete_user():
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
 
-
-
 ############################ User Profile Route######################################################
-""" @app.route('/get_user_profile', methods=['GET'])
-@jwt_required()
-def get_user_profile():
-    # Get the current user's identity from the JWT token
-    user_id = get_jwt_identity()
-
-    # Querty the user from the db
-    user = User.query.get(user_id)
-    if not user:
-        return jsonify({"error": "User not found!"}), 404
-
-    # Query sponsored pets
-    sponsored_pets = Sponsorship.query.filter_by(user_id=user_id).all()
-    sponsored_pets_data = [sponsor.animal.serialize() for sponsor in sponsored_pets]
-
-    # Query adoptions
-    adoptions = Adoption.query.filter_by(user_id=user_id).all()
-    adoptions_data = [adopt.serialize() for adopt in adoptions]
-
-    # Prepare user profile response 🦧
-    user_profile_data = user.serialize()
-    user_profile_data['sponsored_pets'] = sponsored_pets_data
-    user_profile_data['adoptions'] = adoptions_data
-
-    return jsonify(user_profile_data), 200 """
-######################################################v4 get user profile (with animal images)#####
+########v4 get user profile (with animal images)#####
 @app.route('/get_user_profile', methods=['GET'])
 @jwt_required()
 def get_user_profile():
@@ -316,12 +234,6 @@ def get_user_profile():
     user_profile_data['adoptions'] = adoptions_data
 
     return jsonify(user_profile_data), 200
-
-######################################################################################
-
-######################################################################################
-#Might be a nice idea to later get user bi id to manaage in admin!!!
-######################################################################################
 
 ##################################### Get Single User Info ######################
 #Get User By JWT Token
@@ -452,8 +364,6 @@ def create_adoption():
 ###########################################Admin Features#########################
 
 #######################--Add Animals Admin--###########working######
-# Add animal (admin only)
-""" @app.route('/admin_add_animal', methods=['POST'])
 @jwt_required()
 @admin_required
 def add_animal():
@@ -499,7 +409,7 @@ def add_animal():
 ##############################################################
 
 ############################----Delete Animal----###################
-@app.route('/admin_delete_animal/<int:animal_id>', methods=['DELETE'])
+""" @app.route('/admin_delete_animal/<int:animal_id>', methods=['DELETE'])
 @jwt_required()  # Ensure the request has a valid JWT token
 @admin_required  # Ensure the authenticated user is an admin
 def delete_animal(animal_id):
@@ -517,7 +427,6 @@ def delete_animal(animal_id):
     except SQLAlchemyError as e:
         db.session.rollback()
         return jsonify({"error": str(e)}), 500 """
-
 ######################################################################
 ##############################--Add Animal with Image Test- db v2 working (small problem with known illness)-########################################
 @app.route('/admin_add_animal', methods=['POST'])
@@ -579,38 +488,6 @@ def add_animal():
     except SQLAlchemyError as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
-
-######################################################################
-#Delete Animal Admin Only ---v2 db working and deleting pictures
-""" 
-@app.route('/admin_delete_animal/<int:animal_id>', methods=['DELETE'])
-@jwt_required()
-@admin_required
-def delete_animal(animal_id):
-    current_user_id = get_jwt_identity()
-    user = User.query.get(current_user_id)
-
-    if not user.is_admin:
-        return jsonify({"message": "Access denied! You need to be an admin!"}), 403
-
-    animal = Animal.query.get(animal_id)
-    if not animal:
-        return jsonify({"message": "Animal not found"}), 404
-
-    try:
-        # Delete associated images first
-        AnimalImage.query.filter_by(animal_id=animal_id).delete()
-
-        # Then delete the animal
-        db.session.delete(animal)
-        db.session.commit()
-
-        return jsonify({"message": "Animal and associated images deleted successfully"}), 200
-    except SQLAlchemyError as e:
-        db.session.rollback()
-        return jsonify({"error": str(e)}), 500 """
-
-#####################################################################
 
 #Delete Animal Admin Only  and Images From cloudinary---v2 db working and deleting pictures
 #Trying route to delete animal and animal images from cloudinary when deleting animal
@@ -800,240 +677,50 @@ def update_adoption_status(adoption_id):
         return jsonify({"error": str(e)}), 500
 
 #####################################---Stripe Payment Route--#######################################
-""" @app.route('/payment', methods=['POST'])
-@jwt_required()
-def process_payment():
-    current_user_id = get_jwt_identity()
-    user = User.query.get(current_user_id)
-    
-    if not user:
-        return jsonify({"error": "User not found!"}), 404
 
-    data = request.get_json()
-    amount = data.get('amount')
-    currency = data.get('currency', 'usd')
-    payment_method_id = data.get('payment_method_id')
-    description = data.get('description', 'Payment for adoption/sponsorship')
-    return_url = data.get('return_url')  # URL to redirect after payment
+#Followinng Stripe's Instructions to payment
+YOUR_DOMAIN = 'http://localhost:5173' # no extra dash bite server here!
 
-    if not all([amount, payment_method_id, return_url]):
-        return jsonify({'error': 'Missing required fields'}), 400
-
-    try:
-        payment_intent = stripe.PaymentIntent.create(
-            amount=amount,
-            currency=currency,
-            payment_method=payment_method_id,
-            confirmation_method='manual',
-            confirm=True,
-            description=description,
-            return_url=return_url  # Specify the return URL here
-        )
-
-        return jsonify({
-            'payment_intent': payment_intent.id,
-            'status': payment_intent.status,
-            'next_action': payment_intent.next_action  # Helpful for client-side handling
-        }), 200
-
-    except stripe.error.CardError as e:
-        return jsonify({'error': str(e)}), 400
-    except stripe.error.StripeError as e:
-        return jsonify({'error': str(e)}), 500
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500 """
-############################################################################
-#Payment /sponsorship Route One Time
 @app.route('/create-checkout-session', methods=['POST'])
-@jwt_required()
 def create_checkout_session():
-    current_user_id = get_jwt_identity()
-    user = User.query.get(current_user_id)
-
-    if not user:
-        return jsonify({"error": "User not found!"}), 404
-
-    data = request.get_json()
-
-    animal_id = data.get('animal_id')
-    sponsorship_amount = data.get('sponsorship_amount')
-    currency = data.get('currency', 'usd')
-
-    # Validate required fields
-    if not all([animal_id, sponsorship_amount]):
-        return jsonify({'error': 'Missing required fields'}), 400
-
-    # Check if the animal exists
-    animal = Animal.query.get(animal_id)
-    if not animal:
-        return jsonify({'error': 'Animal not found'}), 404
-
     try:
-        # Create a new Stripe Checkout session for one-time payment
-        session = stripe.checkout.Session.create(
-            payment_method_types=['card'],
+        # Receive the amount from the request's body
+        data = request.get_json()
+        print(data)
+        euro_amount = int(data['amount']) #euros
+
+        if euro_amount <= 0:
+            return jsonify({'error': 'Invalid amount'}), 400
+
+        # Convert euros to cents
+        cent_amount = euro_amount * 100
+
+        # Create a checkout session with the specified amount in cents
+        checkout_session = stripe.checkout.Session.create(
             line_items=[{
                 'price_data': {
-                    'currency': currency,
+                    'currency': 'eur',
                     'product_data': {
-                        'name': f'Sponsorship for {animal.name}',
+                        'name': 'Custom Amount',
                     },
-                    'unit_amount': int(float(sponsorship_amount) * 100),  # Convert to cents
+                    'unit_amount': cent_amount,
                 },
                 'quantity': 1,
             }],
-            mode='payment',  # This is for one-time payments
-            success_url=url_for('payment_success', _external=True) + '?session_id={CHECKOUT_SESSION_ID}',
-            cancel_url=url_for('payment_cancel', _external=True),
-            customer_email=user.email,  # Optional: Automatically fill the user's email in Stripe Checkout
+            mode='payment',
+            success_url=YOUR_DOMAIN + '/success',
+            cancel_url=YOUR_DOMAIN + '/cancel',
         )
-
-        return jsonify({'id': session.id})
-
     except Exception as e:
-        return jsonify(error=str(e)), 500
+        return jsonify({'error': str(e)}), 500
 
-#Payment /sponsorship Route Monthly Subscription
-@app.route('/create-subscription-session', methods=['POST'])
-@jwt_required()
-def create_subscription_session():
-    current_user_id = get_jwt_identity()
-    user = User.query.get(current_user_id)
-
-    if not user:
-        return jsonify({"error": "User not found!"}), 404
-
-    data = request.get_json()
-
-    animal_id = data.get('animal_id')
-    sponsorship_amount = data.get('sponsorship_amount')
-    currency = data.get('currency', 'usd')
-
-    # Validate required fields
-    if not all([animal_id, sponsorship_amount]):
-        return jsonify({'error': 'Missing required fields'}), 400
-
-    # Check if the animal exists
-    animal = Animal.query.get(animal_id)
-    if not animal:
-        return jsonify({'error': 'Animal not found'}), 404
-
-    try:
-        # Create a new Stripe Checkout session for recurring payments
-        session = stripe.checkout.Session.create(
-            payment_method_types=['card'],
-            line_items=[{
-                'price_data': {
-                    'currency': currency,
-                    'product_data': {
-                        'name': f'Monthly Sponsorship for {animal.name}',
-                    },
-                    'unit_amount': int(float(sponsorship_amount) * 100),  # Convert to cents
-                    'recurring': {
-                        'interval': 'month',  # Set to monthly
-                    },
-                },
-                'quantity': 1,
-            }],
-            mode='subscription',  # This is for recurring payments
-            success_url=url_for('payment_success', _external=True) + '?session_id={CHECKOUT_SESSION_ID}',
-            cancel_url=url_for('payment_cancel', _external=True),
-            customer_email=user.email,  # Optional: Automatically fill the user's email in Stripe Checkout
-        )
-
-        return jsonify({'id': session.id})
-
-    except Exception as e:
-        return jsonify(error=str(e)), 500
+    return jsonify({'url': checkout_session.url})
 
 
-@app.route('/payment-success')
-def payment_success():
-    # Handle post-payment success logic here
-    return "Payment was successful!"
-
-@app.route('/payment-cancel')
-def payment_cancel():
-    # Handle post-payment cancellation logic here
-    return "Payment was canceled."
 
 
-#First Attempt Stripe
-""" @app.route('/sponsor/one-time', methods=['POST'])
-@jwt_required()
-def create_one_time_sponsorship():
-    current_user_id = get_jwt_identity()
-    user = User.query.get(current_user_id)
+############################################################################
 
-    if not user:
-        return jsonify({"error": "User not found!"}), 404
-
-    data = request.get_json()
-
-    # Extract data for the sponsorship
-    animal_id = data.get('animal_id')
-    sponsorship_amount = data.get('sponsorship_amount')
-    payment_method_id = data.get('payment_method_id')
-    currency = data.get('currency', 'usd')
-
-    # Validate required fields
-    if not all([animal_id, sponsorship_amount, payment_method_id]):
-        return jsonify({'error': 'Missing required fields'}), 400
-
-    # Validate sponsorship amount
-    try:
-        sponsorship_amount = float(sponsorship_amount)
-        if sponsorship_amount <= 0:
-            return jsonify({'error': 'Sponsorship amount must be a positive number'}), 400
-    except ValueError:
-        return jsonify({'error': 'Invalid sponsorship amount'}), 400
-
-    # Check if the animal exists
-    animal = Animal.query.get(animal_id)
-    if not animal:
-        return jsonify({'error': 'Animal not found'}), 404
-
-    try:
-        # Process the payment through Stripe
-        payment_intent = stripe.PaymentIntent.create(
-            amount=int(sponsorship_amount * 100),  
-            currency=currency,
-            payment_method=payment_method_id,
-            confirmation_method='manual',
-            confirm=True,
-            description=f'One-time sponsorship for {animal.name}'
-        )
-
-        if payment_intent.status == 'requires_action':
-            
-            return jsonify({
-                'requires_action': True,
-                'payment_intent_client_secret': payment_intent.client_secret
-            }), 200
-
-        if payment_intent.status == 'succeeded':
-            
-            sponsorship = Sponsorship(
-                user_id=user.id,
-                animal_id=animal.id,
-                sponsorship_amount=sponsorship_amount,
-            )
-
-            db.session.add(sponsorship)
-            db.session.commit()
-
-            return jsonify({
-                'message': 'Sponsorship created successfully!',
-                'sponsorship': sponsorship.serialize()
-            }), 201
-
-    except stripe.error.CardError as e:
-        return jsonify({'error': f'Stripe error: {str(e)}'}), 400
-    except stripe.error.StripeError as e:
-        return jsonify({'error': f'Stripe error: {str(e)}'}), 500
-    except SQLAlchemyError as e:
-        db.session.rollback()
-        return jsonify({'error': str(e)}), 500 """
 
 ##############################################---Public Routes---########################################################
 # Fetch all animals from the database
@@ -1056,6 +743,7 @@ def get_animal(animal_id):
 
     # Serialize the animal data
     return jsonify(animal.serialize()), 200
+
 # Print 10 animals  first test
 @app.route('/api/animals', methods=['GET'])
 def get_animals():

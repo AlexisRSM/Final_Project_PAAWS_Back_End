@@ -85,7 +85,7 @@ class Sponsorship(db.Model):
     user = db.relationship('User', back_populates='sponsorships')
     animal = db.relationship('Animal', back_populates='sponsorships')
 
-    __table_args__ = (db.UniqueConstraint('user_id', 'animal_id', name='uq_user_animal_sponsorship'),)
+    __table_args__ = (db.UniqueConstraint('user_id', 'animal_id', name='uq_user_animal_sponsorship'),) #i think this should be in adoption....
 
     def __repr__(self):
         return f'<Sponsorship User {self.user_id} sponsors Animal {self.animal_id} with {self.sponsorship_amount}>'
