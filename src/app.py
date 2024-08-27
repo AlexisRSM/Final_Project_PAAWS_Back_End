@@ -5,7 +5,7 @@ from flask_migrate import Migrate
 from flask_cors import CORS
 from utils import APIException, generate_sitemap
 from admin import setup_admin
-from models import db, User, Animal,Adoption, Sponsorship, AnimalImage, AdoptionForm
+from models import db, User, Animal,Adoption, Sponsorship, AnimalImage, AdoptionForm,PasswordResetToken
 #Added imports
 from werkzeug.security import generate_password_hash, check_password_hash
 from dotenv import load_dotenv #for enviroment variables
@@ -23,12 +23,37 @@ from flask_jwt_extended import get_jwt_identity
 from flask_jwt_extended import jwt_required
 from flask_jwt_extended import JWTManager
 import stripe
+#Imports for password reset - mail sending
+from flask_mail import Mail, Message
+import secrets
 
 app = Flask(__name__)
 app.url_map.strict_slashes = False
 
 # Load environment variables from .env file
 load_dotenv()
+
+#mail things
+""" app.config['MAIL_SERVER'] = 'smtp.example.com'
+app.config['MAIL_PORT'] = 587
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USERNAME'] = 'your-email@example.com'
+app.config['MAIL_PASSWORD'] = 'your-password'
+app.config['MAIL_DEFAULT_SENDER'] = 'your-email@example.com' """
+
+#load mail pass from env
+password_mail=os.get('EMAIL_PASSWORD')
+
+app.config['MAIL_SERVER']='live.smtp.mailtrap.io'
+app.config['MAIL_PORT'] = 587
+app.config['MAIL_USERNAME'] = 'api'
+app.config['MAIL_PASSWORD'] = 'password_mail'
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USE_SSL'] = False
+
+mail = Mail(app)
+
+
 
 # Setup the Flask-JWT-Extended extension
 jwt_super_secret = os.getenv('JWT_SUPER_SECRET')
@@ -202,9 +227,68 @@ def delete_user():
         return jsonify({"error": str(e)}), 500
 
 ###Password Reseting Routes 
+#function to send mail
+def send_email(subject, recipient, body):
+    msg = Message(subject, recipients=[recipient])
+    msg.body = body
+    try:
+        mail.send(msg)
+    except Exception as e:
+        app.logger.error('Failed to send email: ' + str(e))
+        return False
+    return True
+
+#request password reset
+@app.route('/request-password-reset', methods=['POST'])
+def request_password_reset():
+    data = request.json
+    email = data.get('email')
+    user = User.query.filter_by(email=email).first()
+
+    if not user:
+        return jsonify({'message': 'No account with that email address exists.'}), 404
+
+    token = secrets.token_urlsafe()
+    expires_at = datetime.now() + timedelta(hours=24)
+    new_token = PasswordResetToken(user_id=user.id, token=token, expires_at=expires_at)
+    db.session.add(new_token)
+    db.session.commit()
+
+    reset_url = url_for('reset_password', token=token, _external=True)
+    send_email('Reset Your Password', user.email, 'Please use the following link to reset your password: {}'.format(reset_url))
+
+    return jsonify({'message': 'An email with reset instructions has been sent.'}), 200
 
 
+@app.route('/reset-password/<token>', methods=['POST'])
+def reset_password(token):
+    # Fetch the password reset token from the database
+    password_reset_token = PasswordResetToken.query.filter_by(token=token).first()
 
+    # Check if the token exists and has not expired
+    if not password_reset_token or password_reset_token.expires_at < datetime.now():
+        return jsonify({'message': 'This token is invalid or has expired.'}), 400
+
+    data = request.json
+    new_password = data.get('password')
+
+    # Check if new password is provided
+    if not new_password:
+        return jsonify({'message': 'Password is required.'}), 400
+
+    # Fetch the user associated with the password reset token
+    user = User.query.get(password_reset_token.user_id)
+    if not user:
+        return jsonify({'message': 'User not found.'}), 404
+
+    # Update the user's password
+    user.password = generate_password_hash(new_password)
+    
+    # Delete the token to prevent reuse
+    db.session.delete(password_reset_token)
+    db.session.commit()
+
+    return jsonify({'message': 'Your password has been reset successfully.'}), 200
 
 
 
