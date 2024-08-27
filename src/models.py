@@ -42,8 +42,8 @@ class AdoptionForm(db.Model):
     email = db.Column(db.String(255), nullable=False)
     phone_number = db.Column(db.String(255), nullable=False)
     first_time_adopting = db.Column(db.String(255), nullable=False)
-    already_have_pets = db.Column(db.String(255), nullable=True)  # Made nullable make not nullable
-    current_pets_description = db.Column(db.Text, nullable=True)  # Made nullable make not  nullable
+    already_have_pets = db.Column(db.String(255), nullable=True)  # Made nullable 
+    current_pets_description = db.Column(db.Text, nullable=True)  # Made nullable 
     interest_reason = db.Column(db.Text, nullable=False)
     met_animal = db.Column(db.String(255), nullable=False)
     space_for_play = db.Column(db.String(255), nullable=False)
@@ -74,6 +74,7 @@ class AdoptionForm(db.Model):
         }
 
 # Model for Sponsorships
+#Could add type of contribution to organise later (Montly or one time)
 class Sponsorship(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
@@ -85,7 +86,7 @@ class Sponsorship(db.Model):
     user = db.relationship('User', back_populates='sponsorships')
     animal = db.relationship('Animal', back_populates='sponsorships')
 
-    __table_args__ = (db.UniqueConstraint('user_id', 'animal_id', name='uq_user_animal_sponsorship'),) #i think this should be in adoption....
+    # __table_args__ = (db.UniqueConstraint('user_id', 'animal_id', name='uq_user_animal_sponsorship'),) #i think this should be in adoption....
 
     def __repr__(self):
         return f'<Sponsorship User {self.user_id} sponsors Animal {self.animal_id} with {self.sponsorship_amount}>'
@@ -112,11 +113,16 @@ class User(db.Model):
     phone_number = db.Column(db.String(255),unique=True,nullable=True) #Added unique and nullable
     is_admin = db.Column(db.Boolean, default=False)
     current_spending = db.Column(db.String(255), default='0')
-    total_spent = db.Column(db.String(255), default='0')
+    #total_spent = db.Column(db.String(255), default='0') voided calculated dynamically
 
     # Relationships with Adoption and Sponsorship
     adoptions = db.relationship('Adoption', back_populates='user')
     sponsorships = db.relationship('Sponsorship', back_populates='user')
+
+    #This serves to calculate total amount for each user
+    @property
+    def total_spent(self):
+        return sum(float(sponsorship.sponsorship_amount) for sponsorship in self.sponsorships)
 
     def __repr__(self):
         return f'<User {self.username}>'
@@ -131,8 +137,26 @@ class User(db.Model):
             'phone_number': self.phone_number,
             "is_admin": self.is_admin,
             "current_spending": self.current_spending,
-            "total_spent": self.total_spent
+            "total_spent": self.total_spent  #Calulated Dynamically
         }
+
+#Model For Password Reset Token
+class PasswordResetToken(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    token = db.Column(db.String(255), unique=True, nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    expires_at = db.Column(db.DateTime, nullable=False)
+
+    user = db.relationship('User')
+
+    def __init__(self, user_id, token, expires_at):
+        self.user_id = user_id
+        self.token = token
+        self.expires_at = expires_at
+
+    def __repr__(self):
+        return f'<PasswordResetToken {self.token} for user {self.user_id}>'
+
 
 # Model for Animals
 class Animal(db.Model):
@@ -141,7 +165,7 @@ class Animal(db.Model):
     species = db.Column(db.String(255), nullable=False)
     gender = db.Column(db.String(255), nullable=False)
     description = db.Column(db.String(255), nullable=False)
-    sponsor_id = db.Column(db.Integer, db.ForeignKey('user.id')) #Remover evitar cirar novo registo para animal se ouver sponsor novo
+    #sponsor_id = db.Column(db.Integer, db.ForeignKey('user.id')) #Remover evitar cirar novo registo para animal se ouver sponsor novo
 
     # New fields
     location = db.Column(db.String(255), nullable=True)

@@ -42,6 +42,10 @@ db_url = os.getenv("DATABASE_URL")
 app.config['SQLALCHEMY_DATABASE_URI'] = db_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
+#added cors configuration bc of stripe monthly subscription \test
+CORS(app, resources={r"/*": {"origins": "http://localhost:5173"}})
+
+
 MIGRATE = Migrate(app, db)
 db.init_app(app)
 CORS(app)
@@ -196,6 +200,13 @@ def delete_user():
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
+
+###Password Reseting Routes 
+
+
+
+
+
 
 ############################ User Profile Route######################################################
 ########v4 get user profile (with animal images)#####
@@ -730,7 +741,54 @@ def create_checkout_session():
 
     return jsonify({'url': checkout_session.url})
 
+#Stripe Montly Subscription Custom
+@app.route('/create-subscription-session', methods=['POST'])
+def create_subscription_session():
+    try:
+        # Receive the amount from the request's body
+        data = request.get_json()
+        euro_amount = int(data['amount'])  # euros
 
+        user_id = data['user_id']  # ID of the user making the payment
+        animal_id = data['animal_id']  # ID of the animal being sponsored
+
+        if euro_amount <= 0:
+            return jsonify({'error': 'Invalid amount'}), 400
+
+        # Convert euros to cents
+        cent_amount = euro_amount * 100
+
+        # Create a Price object for the subscription
+        price = stripe.Price.create(
+            unit_amount=cent_amount,
+            currency='eur',
+            recurring={'interval': 'month'},
+            product_data={'name': 'Custom Monthly Sponsorship'},
+        )
+
+        # Create a checkout session for the subscription
+        checkout_session = stripe.checkout.Session.create(
+            payment_method_types=['card'],
+            line_items=[{
+                'price': price.id,
+                'quantity': 1,
+            }],
+            mode='subscription',
+            success_url=YOUR_DOMAIN + '/success',
+            cancel_url=YOUR_DOMAIN + '/cancel',
+            metadata={
+                'user_id': user_id,
+                'animal_id': animal_id,
+                'sponsorship_amount': str(euro_amount),  # Store amount as a string
+            }
+        )
+
+        # Session is created successfully
+        print(checkout_session)
+        return jsonify({'url': checkout_session.url})
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 #Webhook for stripe response
