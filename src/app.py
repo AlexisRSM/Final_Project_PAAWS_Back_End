@@ -10,6 +10,7 @@ from models import db, User, Animal,Adoption, Sponsorship, AnimalImage, Adoption
 from werkzeug.security import generate_password_hash, check_password_hash
 from dotenv import load_dotenv #for enviroment variables
 from functools import wraps
+from datetime import datetime,timedelta
 #Import for errors
 from sqlalchemy.exc import SQLAlchemyError
 #Imports for cloudinary
@@ -32,6 +33,7 @@ load_dotenv()
 # Setup the Flask-JWT-Extended extension
 jwt_super_secret = os.getenv('JWT_SUPER_SECRET')
 app.config["JWT_SECRET_KEY"] = jwt_super_secret
+app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=1)
 jwt = JWTManager(app)
 
 #DB
@@ -689,6 +691,10 @@ def create_checkout_session():
         print(data)
         euro_amount = int(data['amount']) #euros
 
+
+        user_id = data['user_id']  # ID of the user making the payment
+        animal_id = data['animal_id']  # ID of the animal being sponsored
+
         if euro_amount <= 0:
             return jsonify({'error': 'Invalid amount'}), 400
 
@@ -710,11 +716,130 @@ def create_checkout_session():
             mode='payment',
             success_url=YOUR_DOMAIN + '/success',
             cancel_url=YOUR_DOMAIN + '/cancel',
+            #Added to try metadata via webhook
+            metadata={
+                'user_id': user_id,
+                'animal_id': animal_id,
+                'sponsorship_amount': str(euro_amount),  # Store amount as a string
+            } 
         )
+        # Session is created successfully
+        print(checkout_session)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
     return jsonify({'url': checkout_session.url})
+
+
+
+
+#Webhook for stripe response
+@app.route('/webhook', methods=['POST'])
+def stripe_webhook():
+    payload = request.get_data(as_text=True)
+    sig_header = request.headers.get('Stripe-Signature')
+
+    print(payload)
+
+    webhook_secret = os.getenv('STRIPE_WEBHOOK_SECRET')  # Add your Stripe webhook secret here
+    event = None
+
+    try:
+        event = stripe.Webhook.construct_event(payload, sig_header, webhook_secret)
+    except ValueError as e:
+        return jsonify({'error': 'Invalid payload'}), 400
+    except stripe.error.SignatureVerificationError as e:
+        return jsonify({'error': 'Invalid signature'}), 400
+
+    # Handle the event
+    if event['type'] == 'checkout.session.completed':
+        session = event['data']['object']
+
+        # Extract metadata
+        user_id = session['metadata']['user_id']
+        animal_id = session['metadata']['animal_id']
+        sponsorship_amount = session['metadata']['sponsorship_amount']
+
+        # Automatically generate the sponsorship date
+        sponsorship_date = datetime.now()
+
+        try:
+            # Insert the sponsorship into the database
+            new_sponsorship = Sponsorship(
+                user_id=user_id,
+                animal_id=animal_id,
+                sponsorship_amount=sponsorship_amount,
+                sponsorship_date=sponsorship_date
+            )
+            db.session.add(new_sponsorship)
+            db.session.commit()
+            return jsonify({'status': 'success'}), 200
+        except SQLAlchemyError as e:
+            db.session.rollback()
+            return jsonify({'error': str(e)}), 500
+
+    return jsonify({'status': 'success'}), 200
+
+
+############################## Second Test Stripe payment route
+""" @app.route('/create-checkout-session', methods=['POST'])
+def create_checkout_session():
+    try:
+        # Receive data from the request's body
+        data = request.get_json()
+        print(data)
+
+        # Extract the amount in euros
+        euro_amount = int(data.get('amount', 0))  # euros
+
+        # Validate the amount
+        if euro_amount <= 0:
+            return jsonify({'error': 'Invalid amount'}), 400
+
+        # Convert euros to cents
+        cent_amount = euro_amount * 100
+
+        # Extract additional fields for Sponsorship
+        user_id = data.get('user_id')
+        animal_id = data.get('animal_id')
+        sponsorship_amount = data.get('sponsorship_amount', '0')  # Default to '0'
+        sponsorship_date = data.get('sponsorship_date', datetime.now())  # Default to now
+
+        # Optional: Validate additional fields
+        if not user_id or not animal_id:
+            return jsonify({'error': 'User ID and Animal ID are required'}), 400
+
+        # Create a checkout session with the specified amount in cents
+        checkout_session = stripe.checkout.Session.create(
+            line_items=[{
+                'price_data': {
+                    'currency': 'eur',
+                    'product_data': {
+                        'name': 'Custom Amount',
+                    },
+                    'unit_amount': cent_amount,
+                },
+                'quantity': 1,
+            }],
+            mode='payment',
+            success_url=YOUR_DOMAIN + '/success',
+            cancel_url=YOUR_DOMAIN + '/cancel',
+        )
+
+        # (Optional) Save the sponsorship details in the database
+        new_sponsorship = Sponsorship(
+            user_id=user_id,
+            animal_id=animal_id,
+            sponsorship_amount=sponsorship_amount,
+            sponsorship_date = data.get('sponsorship_date', None)
+        )
+        db.session.add(new_sponsorship)
+        db.session.commit()
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+    return jsonify({'url': checkout_session.url}) """
 
 ##############################################---Public Routes---########################################################
 # Fetch all animals from the database

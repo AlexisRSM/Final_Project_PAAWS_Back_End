@@ -42,8 +42,8 @@ class AdoptionForm(db.Model):
     email = db.Column(db.String(255), nullable=False)
     phone_number = db.Column(db.String(255), nullable=False)
     first_time_adopting = db.Column(db.String(255), nullable=False)
-    already_have_pets = db.Column(db.String(255), nullable=True)  # Made nullable
-    current_pets_description = db.Column(db.Text, nullable=True)  # Made nullable
+    already_have_pets = db.Column(db.String(255), nullable=True)  # Made nullable make not nullable
+    current_pets_description = db.Column(db.Text, nullable=True)  # Made nullable make not  nullable
     interest_reason = db.Column(db.Text, nullable=False)
     met_animal = db.Column(db.String(255), nullable=False)
     space_for_play = db.Column(db.String(255), nullable=False)
