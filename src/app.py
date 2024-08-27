@@ -241,7 +241,7 @@ def send_email(subject, recipient, body):
     return True
 
 #request password reset
-@app.route('/request-password-reset', methods=['POST'])
+""" @app.route('/request-password-reset', methods=['POST'])
 def request_password_reset():
     data = request.json
     email = data.get('email')
@@ -266,7 +266,7 @@ def request_password_reset():
 def reset_password(token):
     # Fetch the password reset token from the database
     password_reset_token = PasswordResetToken.query.filter_by(token=token).first()
-
+    print(password_reset_token)
     # Check if the token exists and has not expired
     if not password_reset_token or password_reset_token.expires_at < datetime.now():
         return jsonify({'message': 'This token is invalid or has expired.'}), 400
@@ -290,9 +290,63 @@ def reset_password(token):
     db.session.delete(password_reset_token)
     db.session.commit()
 
+    return jsonify({'message': 'Your password has been reset successfully.'}), 200 """
+
+@app.route('/request-password-reset', methods=['POST'])
+def request_password_reset():
+    data = request.json
+    email = data.get('email')
+    user = User.query.filter_by(email=email).first()
+
+    if not user:
+        return jsonify({'message': 'No account with that email address exists.'}), 404
+
+    token = secrets.token_urlsafe()
+    expires_at = datetime.now() + timedelta(hours=24)
+    new_token = PasswordResetToken(user_id=user.id, token=token, expires_at=expires_at)
+    db.session.add(new_token)
+    db.session.commit()
+
+    # Update the reset URL to match the frontend route structure
+    reset_url = f"http://localhost:5173/resetpass/{token}"
+    
+    send_email('Reset Your Password', user.email, 'Please use the following link to reset your password: {}'.format(reset_url))
+
+    return jsonify({'message': 'An email with reset instructions has been sent.'}), 200
+
+@app.route('/reset-password/<token>', methods=['POST'])
+def reset_password(token):
+    # Fetch the password reset token from the database
+    password_reset_token = PasswordResetToken.query.filter_by(token=token).first()
+
+    # Check if the token exists and has not expired
+    if not password_reset_token or password_reset_token.expires_at < datetime.now():
+        return jsonify({'message': 'This token is invalid or has expired.'}), 400
+
+    data = request.json
+    new_password = data.get('password')
+    confirm_password = data.get('confirm_password')
+
+    # Check if the new password and confirm password match
+    if not new_password or not confirm_password:
+        return jsonify({'message': 'Both password fields are required.'}), 400
+
+    if new_password != confirm_password:
+        return jsonify({'message': 'Passwords do not match.'}), 400
+
+    # Fetch the user associated with the password reset token
+    user = User.query.get(password_reset_token.user_id)
+    if not user:
+        return jsonify({'message': 'User not found.'}), 404
+
+    # Update the user's password
+    user.password = generate_password_hash(new_password)
+    
+    # Delete the token to prevent reuse
+    db.session.delete(password_reset_token)
+    db.session.commit()
+
     return jsonify({'message': 'Your password has been reset successfully.'}), 200
-
-
 
 ############################ User Profile Route######################################################
 ########v4 get user profile (with animal images)#####
