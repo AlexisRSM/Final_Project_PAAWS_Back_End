@@ -42,14 +42,16 @@ app.config['MAIL_PASSWORD'] = 'your-password'
 app.config['MAIL_DEFAULT_SENDER'] = 'your-email@example.com' """
 
 #load mail pass from env
-password_mail=os.get('EMAIL_PASSWORD')
+password_mail=os.getenv('EMAIL_PASSWORD')
 
-app.config['MAIL_SERVER']='live.smtp.mailtrap.io'
+app.config['MAIL_SERVER']='smtp.gmail.com'
 app.config['MAIL_PORT'] = 587
-app.config['MAIL_USERNAME'] = 'api'
-app.config['MAIL_PASSWORD'] = 'password_mail'
+app.config['MAIL_USERNAME'] = 'paawsforlife@gmail.com'
+app.config['MAIL_PASSWORD'] = password_mail
 app.config['MAIL_USE_TLS'] = True
 app.config['MAIL_USE_SSL'] = False
+# Set a default sender
+app.config['MAIL_DEFAULT_SENDER'] = 'paawsforlife@gmail.com'
 
 mail = Mail(app)
 
