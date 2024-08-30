@@ -235,6 +235,7 @@ def send_email(subject, recipient, body):
     msg.body = body
     try:
         mail.send(msg)
+        print("Email Sent to" ,{recipient})
     except Exception as e:
         app.logger.error('Failed to send email: ' + str(e))
         return False
@@ -800,8 +801,8 @@ def get_all_adoptions():
     except SQLAlchemyError as e:
         return jsonify({'error': str(e)}), 500
 
-#Update Adoption Status
-@app.route('/update_adoption_status/<int:adoption_id>', methods=['PUT'])
+#Update Adoption Status -working!Final
+""" @app.route('/update_adoption_status/<int:adoption_id>', methods=['PUT'])
 @jwt_required()
 @admin_required
 def update_adoption_status(adoption_id):
@@ -827,7 +828,120 @@ def update_adoption_status(adoption_id):
         return jsonify({"message": "Adoption status updated successfully!", "adoption": adoption.serialize()}), 200
     except SQLAlchemyError as e:
         db.session.rollback()
+        return jsonify({"error": str(e)}), 500 """
+    
+
+#Edit adoption status with send email test -working
+""" @app.route('/update_adoption_status/<int:adoption_id>', methods=['PUT'])
+@jwt_required()
+@admin_required
+def update_adoption_status(adoption_id):
+    # Fetch the adoption record by ID
+    adoption = Adoption.query.get(adoption_id)
+    if not adoption:
+        return jsonify({"error": "Adoption not found!"}), 404
+
+    # Get the new status from the request data
+    data = request.get_json()
+    new_status = data.get('adoption_status')
+    print(new_status)
+
+    # Validate that the new status is provided
+    if not new_status:
+        return jsonify({'error': 'Missing required fields: adoption_status'}), 400
+
+    # Update the adoption status
+    adoption.adoption_status = new_status
+
+    try:
+        # Check if the adoption status is 'approved'
+        if new_status == 'Approved':
+            user_email = adoption.user.email  # Get the user's email
+            print("user mail", user_email)
+            animal_name = adoption.animal.name  # Get the animal's name
+
+            print("animal name", animal_name)
+
+
+            # Prepare the email content
+            subject = "Adoption Approved"
+            body = f"Dear {adoption.user.first_name},\n\nYour adoption request for {animal_name} has been approved. Please contact us for further instructions.\n\nBest regards,\nYour PAAWS"
+
+            # Send the email
+            email_sent = send_email(subject, user_email, body)
+            print("email sent")
+            if not email_sent:
+                print("email no sent")
+                return jsonify({"error": "Failed to send approval email."}), 500
+
+        # Commit the changes to the database
+        db.session.commit()
+        return jsonify({"message": "Adoption status updated successfully!", "adoption": adoption.serialize()}), 200
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500 """
+
+@app.route('/update_adoption_status/<int:adoption_id>', methods=['PUT'])
+@jwt_required()
+@admin_required
+def update_adoption_status(adoption_id):
+    # Fetch the adoption record by ID
+    adoption = Adoption.query.get(adoption_id)
+    if not adoption:
+        return jsonify({"error": "Adoption not found!"}), 404
+
+    # Get the new status from the request data
+    data = request.get_json()
+    new_status = data.get('adoption_status')
+    print(new_status)
+
+    # Validate that the new status is provided
+    if not new_status:
+        return jsonify({'error': 'Missing required fields: adoption_status'}), 400
+
+    # Update the adoption status
+    adoption.adoption_status = new_status
+
+    try:
+        # Check if the adoption status is 'Approved' or 'Rejected'
+        if new_status in ['Approved', 'Rejected']:
+            user_email = adoption.user.email  # Get the user's email
+            print("user mail", user_email)
+            animal_name = adoption.animal.name  # Get the animal's name
+            print("animal name", animal_name)
+
+            # Prepare the email content based on the status
+            if new_status == 'Approved':
+                subject = "Adoption Approved"
+                body = f"Dear {adoption.user.first_name},\n\nYour adoption request for {animal_name} has been approved. Please contact us for further instructions.\n\nBest regards,\nYour PAAWS"
+            elif new_status == 'Rejected':
+                subject = "Adoption Rejected"
+                body = f"Dear {adoption.user.first_name},\n\nWe regret to inform you that your adoption request for {animal_name} has been rejected. However, we encourage you to keep trying! There are many animals in need of a loving home, and we believe the right one is out there for you. Please feel free to apply for another adoption, and don't hesitate to reach out if you have any questions.\n\nBest regards,\nYour PAAWS"
+
+            # Send the email
+            email_sent = send_email(subject, user_email, body)
+            print("email sent")
+            if not email_sent:
+                print("email not sent")
+                return jsonify({"error": "Failed to send status update email."}), 500
+
+        # Commit the changes to the database
+        db.session.commit()
+        return jsonify({"message": "Adoption status updated successfully!", "adoption": adoption.serialize()}), 200
+    except SQLAlchemyError as e:
+        db.session.rollback()
         return jsonify({"error": str(e)}), 500
+
+    
+
+@app.route('/adoption_form/<int:id>', methods=['GET'])
+@jwt_required()  
+@admin_required
+def get_adoption_form(id):
+    form = AdoptionForm.query.get(id)
+    if not form:
+        return jsonify({"error": "Adoption form not found!"}), 404
+    return jsonify(form.serialize()), 200
 
 #####################################---Stripe Payment Route--#######################################
 
