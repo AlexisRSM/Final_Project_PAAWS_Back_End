@@ -632,7 +632,7 @@ def add_animal():
         db.session.add(new_animal)
         db.session.commit()
 
-        # Handle file uploads
+        # Handle file uploads RM
         image_urls = []
         if 'image' in request.files:
             image_files = request.files.getlist('image')
