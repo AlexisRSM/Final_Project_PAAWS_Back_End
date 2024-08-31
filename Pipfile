@@ -22,6 +22,7 @@ cloudinary = "*"
 pipdeptree = "*"
 stripe = "*"
 flask-jwt-extended = "*"
+flask-mail = "*"
 
 [requires]
 python_version = "3.10"
