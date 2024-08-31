@@ -19,6 +19,9 @@ gunicorn = "*"
 mysqlclient = "*"
 flask-admin = "*"
 cloudinary = "*"
+pipdeptree = "*"
+stripe = "*"
+flask-jwt-extended = "*"
 
 [requires]
 python_version = "3.10"
