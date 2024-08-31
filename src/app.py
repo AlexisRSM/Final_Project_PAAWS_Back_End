@@ -5,7 +5,7 @@ from flask_migrate import Migrate
 from flask_cors import CORS
 from utils import APIException, generate_sitemap
 from admin import setup_admin
-from models import db, User, Animal,Adoption, Sponsorship, AnimalImage, AdoptionForm
+from models import db, User, Animal,Adoption, Sponsorship, AnimalImage, AdoptionForm,PasswordResetToken
 #Added imports
 from werkzeug.security import generate_password_hash, check_password_hash
 from dotenv import load_dotenv #for enviroment variables
@@ -23,12 +23,39 @@ from flask_jwt_extended import get_jwt_identity
 from flask_jwt_extended import jwt_required
 from flask_jwt_extended import JWTManager
 import stripe
+#Imports for password reset - mail sending
+from flask_mail import Mail, Message
+import secrets
 
 app = Flask(__name__)
 app.url_map.strict_slashes = False
 
 # Load environment variables from .env file
 load_dotenv()
+
+#mail things
+""" app.config['MAIL_SERVER'] = 'smtp.example.com'
+app.config['MAIL_PORT'] = 587
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USERNAME'] = 'your-email@example.com'
+app.config['MAIL_PASSWORD'] = 'your-password'
+app.config['MAIL_DEFAULT_SENDER'] = 'your-email@example.com' """
+
+#load mail pass from env
+password_mail=os.getenv('EMAIL_PASSWORD')
+
+app.config['MAIL_SERVER']='smtp.gmail.com'
+app.config['MAIL_PORT'] = 587
+app.config['MAIL_USERNAME'] = 'paawsforlife@gmail.com'
+app.config['MAIL_PASSWORD'] = password_mail
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USE_SSL'] = False
+# Set a default sender
+app.config['MAIL_DEFAULT_SENDER'] = 'paawsforlife@gmail.com'
+
+mail = Mail(app)
+
+
 
 # Setup the Flask-JWT-Extended extension
 jwt_super_secret = os.getenv('JWT_SUPER_SECRET')
@@ -41,6 +68,10 @@ db_url = os.getenv("DATABASE_URL")
 #print(db_url)
 app.config['SQLALCHEMY_DATABASE_URI'] = db_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+#added cors configuration bc of stripe monthly subscription \test
+CORS(app, resources={r"/*": {"origins": "http://localhost:5173"}})
+
 
 MIGRATE = Migrate(app, db)
 db.init_app(app)
@@ -117,6 +148,15 @@ def register():
         # Add the new user to the database and commit
         db.session.add(new_user)
         db.session.commit()
+
+        # Prepare the email content
+        subject = "Welcome to the PAAWS Family!"
+        body = f"Dear {first_name},\n\nWelcome to the PAAWS family! We're thrilled to have you join us on this journey to find loving homes for our furry friends. Your account has been successfully created, and we can't wait to help you find your perfect pet match. \n\nRemember, every pet has a story, and we're so excited that you could be a part of the next chapter in their lives. If you have any questions or need assistance, we're just a woof, meow, or email away.\n\nWarmest paws and regards,\nThe PAAWS Team"
+
+        # Send the confirmation email
+        email_sent = send_email(subject, email, body)
+        if not email_sent:
+            print("Failed to send registration confirmation email.")
     except SQLAlchemyError as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
@@ -196,6 +236,127 @@ def delete_user():
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
+
+###Password Reseting Routes 
+#function to send mail
+def send_email(subject, recipient, body):
+    msg = Message(subject, recipients=[recipient])
+    msg.body = body
+    try:
+        mail.send(msg)
+        print("Email Sent to" ,{recipient})
+    except Exception as e:
+        app.logger.error('Failed to send email: ' + str(e))
+        return False
+    return True
+
+#request password reset
+""" @app.route('/request-password-reset', methods=['POST'])
+def request_password_reset():
+    data = request.json
+    email = data.get('email')
+    user = User.query.filter_by(email=email).first()
+
+    if not user:
+        return jsonify({'message': 'No account with that email address exists.'}), 404
+
+    token = secrets.token_urlsafe()
+    expires_at = datetime.now() + timedelta(hours=24)
+    new_token = PasswordResetToken(user_id=user.id, token=token, expires_at=expires_at)
+    db.session.add(new_token)
+    db.session.commit()
+
+    reset_url = url_for('reset_password', token=token, _external=True)
+    send_email('Reset Your Password', user.email, 'Please use the following link to reset your password: {}'.format(reset_url))
+
+    return jsonify({'message': 'An email with reset instructions has been sent.'}), 200
+
+
+@app.route('/reset-password/<token>', methods=['POST'])
+def reset_password(token):
+    # Fetch the password reset token from the database
+    password_reset_token = PasswordResetToken.query.filter_by(token=token).first()
+    print(password_reset_token)
+    # Check if the token exists and has not expired
+    if not password_reset_token or password_reset_token.expires_at < datetime.now():
+        return jsonify({'message': 'This token is invalid or has expired.'}), 400
+
+    data = request.json
+    new_password = data.get('password')
+
+    # Check if new password is provided
+    if not new_password:
+        return jsonify({'message': 'Password is required.'}), 400
+
+    # Fetch the user associated with the password reset token
+    user = User.query.get(password_reset_token.user_id)
+    if not user:
+        return jsonify({'message': 'User not found.'}), 404
+
+    # Update the user's password
+    user.password = generate_password_hash(new_password)
+    
+    # Delete the token to prevent reuse
+    db.session.delete(password_reset_token)
+    db.session.commit()
+
+    return jsonify({'message': 'Your password has been reset successfully.'}), 200 """
+
+@app.route('/request-password-reset', methods=['POST'])
+def request_password_reset():
+    data = request.json
+    email = data.get('email')
+    user = User.query.filter_by(email=email).first()
+
+    if not user:
+        return jsonify({'message': 'No account with that email address exists.'}), 404
+
+    token = secrets.token_urlsafe()
+    expires_at = datetime.now() + timedelta(hours=24)
+    new_token = PasswordResetToken(user_id=user.id, token=token, expires_at=expires_at)
+    db.session.add(new_token)
+    db.session.commit()
+
+    # Update the reset URL to match the frontend route structure
+    reset_url = f"http://localhost:5173/resetpass/{token}"
+    
+    send_email('Reset Your Password', user.email, 'Please use the following link to reset your password: {}'.format(reset_url))
+
+    return jsonify({'message': 'An email with reset instructions has been sent.'}), 200
+
+@app.route('/reset-password/<token>', methods=['POST'])
+def reset_password(token):
+    # Fetch the password reset token from the database
+    password_reset_token = PasswordResetToken.query.filter_by(token=token).first()
+
+    # Check if the token exists and has not expired
+    if not password_reset_token or password_reset_token.expires_at < datetime.now():
+        return jsonify({'message': 'This token is invalid or has expired.'}), 400
+
+    data = request.json
+    new_password = data.get('password')
+    confirm_password = data.get('confirm_password')
+
+    # Check if the new password and confirm password match
+    if not new_password or not confirm_password:
+        return jsonify({'message': 'Both password fields are required.'}), 400
+
+    if new_password != confirm_password:
+        return jsonify({'message': 'Passwords do not match.'}), 400
+
+    # Fetch the user associated with the password reset token
+    user = User.query.get(password_reset_token.user_id)
+    if not user:
+        return jsonify({'message': 'User not found.'}), 404
+
+    # Update the user's password
+    user.password = generate_password_hash(new_password)
+    
+    # Delete the token to prevent reuse
+    db.session.delete(password_reset_token)
+    db.session.commit()
+
+    return jsonify({'message': 'Your password has been reset successfully.'}), 200
 
 ############################ User Profile Route######################################################
 ########v4 get user profile (with animal images)#####
@@ -649,8 +810,8 @@ def get_all_adoptions():
     except SQLAlchemyError as e:
         return jsonify({'error': str(e)}), 500
 
-#Update Adoption Status
-@app.route('/update_adoption_status/<int:adoption_id>', methods=['PUT'])
+#Update Adoption Status -working!Final
+""" @app.route('/update_adoption_status/<int:adoption_id>', methods=['PUT'])
 @jwt_required()
 @admin_required
 def update_adoption_status(adoption_id):
@@ -676,7 +837,120 @@ def update_adoption_status(adoption_id):
         return jsonify({"message": "Adoption status updated successfully!", "adoption": adoption.serialize()}), 200
     except SQLAlchemyError as e:
         db.session.rollback()
+        return jsonify({"error": str(e)}), 500 """
+    
+
+#Edit adoption status with send email test -working
+""" @app.route('/update_adoption_status/<int:adoption_id>', methods=['PUT'])
+@jwt_required()
+@admin_required
+def update_adoption_status(adoption_id):
+    # Fetch the adoption record by ID
+    adoption = Adoption.query.get(adoption_id)
+    if not adoption:
+        return jsonify({"error": "Adoption not found!"}), 404
+
+    # Get the new status from the request data
+    data = request.get_json()
+    new_status = data.get('adoption_status')
+    print(new_status)
+
+    # Validate that the new status is provided
+    if not new_status:
+        return jsonify({'error': 'Missing required fields: adoption_status'}), 400
+
+    # Update the adoption status
+    adoption.adoption_status = new_status
+
+    try:
+        # Check if the adoption status is 'approved'
+        if new_status == 'Approved':
+            user_email = adoption.user.email  # Get the user's email
+            print("user mail", user_email)
+            animal_name = adoption.animal.name  # Get the animal's name
+
+            print("animal name", animal_name)
+
+
+            # Prepare the email content
+            subject = "Adoption Approved"
+            body = f"Dear {adoption.user.first_name},\n\nYour adoption request for {animal_name} has been approved. Please contact us for further instructions.\n\nBest regards,\nYour PAAWS"
+
+            # Send the email
+            email_sent = send_email(subject, user_email, body)
+            print("email sent")
+            if not email_sent:
+                print("email no sent")
+                return jsonify({"error": "Failed to send approval email."}), 500
+
+        # Commit the changes to the database
+        db.session.commit()
+        return jsonify({"message": "Adoption status updated successfully!", "adoption": adoption.serialize()}), 200
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500 """
+
+@app.route('/update_adoption_status/<int:adoption_id>', methods=['PUT'])
+@jwt_required()
+@admin_required
+def update_adoption_status(adoption_id):
+    # Fetch the adoption record by ID
+    adoption = Adoption.query.get(adoption_id)
+    if not adoption:
+        return jsonify({"error": "Adoption not found!"}), 404
+
+    # Get the new status from the request data
+    data = request.get_json()
+    new_status = data.get('adoption_status')
+    print(new_status)
+
+    # Validate that the new status is provided
+    if not new_status:
+        return jsonify({'error': 'Missing required fields: adoption_status'}), 400
+
+    # Update the adoption status
+    adoption.adoption_status = new_status
+
+    try:
+        # Check if the adoption status is 'Approved' or 'Rejected'
+        if new_status in ['Approved', 'Rejected']:
+            user_email = adoption.user.email  # Get the user's email
+            print("user mail", user_email)
+            animal_name = adoption.animal.name  # Get the animal's name
+            print("animal name", animal_name)
+
+            # Prepare the email content based on the status
+            if new_status == 'Approved':
+                subject = "Adoption Approved"
+                body = f"Dear {adoption.user.first_name},\n\nYour adoption request for {animal_name} has been approved. Please contact us for further instructions.\n\nBest regards,\nYour PAAWS"
+            elif new_status == 'Rejected':
+                subject = "Adoption Rejected"
+                body = f"Dear {adoption.user.first_name},\n\nWe regret to inform you that your adoption request for {animal_name} has been rejected. However, we encourage you to keep trying! There are many animals in need of a loving home, and we believe the right one is out there for you. Please feel free to apply for another adoption, and don't hesitate to reach out if you have any questions.\n\nBest regards,\nYour PAAWS"
+
+            # Send the email
+            email_sent = send_email(subject, user_email, body)
+            print("email sent")
+            if not email_sent:
+                print("email not sent")
+                return jsonify({"error": "Failed to send status update email."}), 500
+
+        # Commit the changes to the database
+        db.session.commit()
+        return jsonify({"message": "Adoption status updated successfully!", "adoption": adoption.serialize()}), 200
+    except SQLAlchemyError as e:
+        db.session.rollback()
         return jsonify({"error": str(e)}), 500
+
+    
+
+@app.route('/adoption_form/<int:id>', methods=['GET'])
+@jwt_required()  
+@admin_required
+def get_adoption_form(id):
+    form = AdoptionForm.query.get(id)
+    if not form:
+        return jsonify({"error": "Adoption form not found!"}), 404
+    return jsonify(form.serialize()), 200
 
 #####################################---Stripe Payment Route--#######################################
 
@@ -730,7 +1004,54 @@ def create_checkout_session():
 
     return jsonify({'url': checkout_session.url})
 
+#Stripe Montly Subscription Custom
+@app.route('/create-subscription-session', methods=['POST'])
+def create_subscription_session():
+    try:
+        # Receive the amount from the request's body
+        data = request.get_json()
+        euro_amount = int(data['amount'])  # euros
 
+        user_id = data['user_id']  # ID of the user making the payment
+        animal_id = data['animal_id']  # ID of the animal being sponsored
+
+        if euro_amount <= 0:
+            return jsonify({'error': 'Invalid amount'}), 400
+
+        # Convert euros to cents
+        cent_amount = euro_amount * 100
+
+        # Create a Price object for the subscription
+        price = stripe.Price.create(
+            unit_amount=cent_amount,
+            currency='eur',
+            recurring={'interval': 'month'},
+            product_data={'name': 'Custom Monthly Sponsorship'},
+        )
+
+        # Create a checkout session for the subscription
+        checkout_session = stripe.checkout.Session.create(
+            payment_method_types=['card'],
+            line_items=[{
+                'price': price.id,
+                'quantity': 1,
+            }],
+            mode='subscription',
+            success_url=YOUR_DOMAIN + '/success',
+            cancel_url=YOUR_DOMAIN + '/cancel',
+            metadata={
+                'user_id': user_id,
+                'animal_id': animal_id,
+                'sponsorship_amount': str(euro_amount),  # Store amount as a string
+            }
+        )
+
+        # Session is created successfully
+        print(checkout_session)
+        return jsonify({'url': checkout_session.url})
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 #Webhook for stripe response
