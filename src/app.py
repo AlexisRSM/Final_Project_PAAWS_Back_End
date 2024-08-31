@@ -148,6 +148,15 @@ def register():
         # Add the new user to the database and commit
         db.session.add(new_user)
         db.session.commit()
+
+        # Prepare the email content
+        subject = "Welcome to the PAAWS Family!"
+        body = f"Dear {first_name},\n\nWelcome to the PAAWS family! We're thrilled to have you join us on this journey to find loving homes for our furry friends. Your account has been successfully created, and we can't wait to help you find your perfect pet match. \n\nRemember, every pet has a story, and we're so excited that you could be a part of the next chapter in their lives. If you have any questions or need assistance, we're just a woof, meow, or email away.\n\nWarmest paws and regards,\nThe PAAWS Team"
+
+        # Send the confirmation email
+        email_sent = send_email(subject, email, body)
+        if not email_sent:
+            print("Failed to send registration confirmation email.")
     except SQLAlchemyError as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500

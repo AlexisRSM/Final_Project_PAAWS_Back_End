@@ -7,7 +7,7 @@ db = SQLAlchemy()
 class Adoption(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    animal_id = db.Column(db.Integer, db.ForeignKey('animal.id'), nullable=False)
+    animal_id = db.Column(db.Integer, db.ForeignKey('animal.id', ondelete='CASCADE'), nullable=False) #AddedCascade delete
     adoption_date = db.Column(db.DateTime, default=datetime.now)
     adoption_status = db.Column(db.String(255), default='Pending')
     form_id = db.Column(db.Integer, db.ForeignKey('adoption_form.id'))  # Foreign Key to AdoptionForm
@@ -50,7 +50,7 @@ class AdoptionForm(db.Model):
     able_to_front_vet_bills = db.Column(db.String(255), nullable=False)
 
     # Relationship with Adoption
-    adoption = db.relationship('Adoption', back_populates='form', uselist=False)
+    adoption = db.relationship('Adoption', back_populates='form',cascade="all, delete-orphan", uselist=False)
 
     def __repr__(self):
         return f'<AdoptionForm {self.first_name} {self.last_name}>'
@@ -78,7 +78,7 @@ class AdoptionForm(db.Model):
 class Sponsorship(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    animal_id = db.Column(db.Integer, db.ForeignKey('animal.id'), nullable=False)
+    animal_id = db.Column(db.Integer, db.ForeignKey('animal.id', ondelete='CASCADE'), nullable=False)#AddedCascade delte
     sponsorship_amount = db.Column(db.String(255), default='0')
     sponsorship_date = db.Column(db.DateTime, default=datetime.now)
 
@@ -164,7 +164,7 @@ class Animal(db.Model):
     name = db.Column(db.String(255), nullable=False)
     species = db.Column(db.String(255), nullable=False)
     gender = db.Column(db.String(255), nullable=False)
-    description = db.Column(db.String(255), nullable=False)
+    description = db.Column(db.String(1300), nullable=False) # altered to 1300chars
     #sponsor_id = db.Column(db.Integer, db.ForeignKey('user.id')) #Remover evitar cirar novo registo para animal se ouver sponsor novo
 
     # New fields
@@ -175,9 +175,9 @@ class Animal(db.Model):
     known_illness = db.Column(db.String(255), nullable=True)  
 
     # Relationships with Adoption and Sponsorship and Images
-    adoptions = db.relationship('Adoption', back_populates='animal')
-    sponsorships = db.relationship('Sponsorship', back_populates='animal')
-    images = db.relationship('AnimalImage', back_populates='animal')
+    adoptions = db.relationship('Adoption', back_populates='animal', cascade='all, delete-orphan') #added cascade delete
+    sponsorships = db.relationship('Sponsorship', back_populates='animal', cascade='all, delete-orphan') #added cascade delete
+    images = db.relationship('AnimalImage', back_populates='animal', cascade='all, delete-orphan') #added cascade delete
 
     # Relationship with AnimalImage
     #(might want to implement to solve problem deleting pets and images cascade automatically) images = db.relationship('AnimalImage', backref='animal', cascade='all, delete-orphan')
@@ -203,7 +203,7 @@ class Animal(db.Model):
 # Model for Animal Images
 class AnimalImage(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    animal_id = db.Column(db.Integer, db.ForeignKey('animal.id'), nullable=False)
+    animal_id = db.Column(db.Integer, db.ForeignKey('animal.id', ondelete='CASCADE'), nullable=False) #added cascade delete
     image_url = db.Column(db.String(255), nullable=False)
 
     # Relationship with Animal
