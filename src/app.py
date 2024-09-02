@@ -840,8 +840,8 @@ def update_adoption_status(adoption_id):
         return jsonify({"error": str(e)}), 500 """
     
 
-#Edit adoption status with send email test -working
-""" @app.route('/update_adoption_status/<int:adoption_id>', methods=['PUT'])
+#Edit adoption status with send email test -working test
+@app.route('/update_adoption_status/<int:adoption_id>', methods=['PUT'])
 @jwt_required()
 @admin_required
 def update_adoption_status(adoption_id):
@@ -888,9 +888,9 @@ def update_adoption_status(adoption_id):
         return jsonify({"message": "Adoption status updated successfully!", "adoption": adoption.serialize()}), 200
     except SQLAlchemyError as e:
         db.session.rollback()
-        return jsonify({"error": str(e)}), 500 """
+        return jsonify({"error": str(e)}), 500
 
-@app.route('/update_adoption_status/<int:adoption_id>', methods=['PUT'])
+""" @app.route('/update_adoption_status/<int:adoption_id>', methods=['PUT'])
 @jwt_required()
 @admin_required
 def update_adoption_status(adoption_id):
@@ -941,7 +941,7 @@ def update_adoption_status(adoption_id):
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
 
-    
+     """
 
 @app.route('/adoption_form/<int:id>', methods=['GET'])
 @jwt_required()  
