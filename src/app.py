@@ -899,56 +899,85 @@ def update_adoption_status(adoption_id):
     if not adoption:
         return jsonify({"error": "Adoption not found!"}), 404
 
-    # Get the new status from the request data
     data = request.get_json()
     new_status = data.get('adoption_status')
 
-    # Validate that the new status is provided
+    # Validate the new status
     if not new_status:
         return jsonify({'error': 'Missing required fields: adoption_status'}), 400
 
     try:
-        # Step 1: If the new status is 'Approved', reject all other adoption processes for the same animal
+        # If new status is 'Approved', reject all other adoptions for the same animal
         if new_status == 'Approved':
-            # Get the current animal's ID
             animal_id = adoption.animal_id
+            other_adoptions = Adoption.query.filter(
+                Adoption.animal_id == animal_id,
+                Adoption.id != adoption_id  # Ignore the current adoption
+            ).all()
 
-            # Fetch all other adoption requests for the same animal except the current one
-            other_adoptions = Adoption.query.filter(Adoption.animal_id == animal_id, Adoption.id != adoption_id).all()
-
-            # Reject all other adoption processes for the same animal
+            # Reject all other adoptions for the same animal
             for other_adoption in other_adoptions:
-                if other_adoption.adoption_status != 'Rejected':  # Avoid redundant updates
+                if other_adoption.adoption_status != 'Rejected':
                     other_adoption.adoption_status = 'Rejected'
-                    db.session.add(other_adoption)  # Mark the change for saving
+                    db.session.add(other_adoption)
 
-            # Approve the current adoption process
+            # Approve the current adoption
             adoption.adoption_status = 'Approved'
 
-            # Prepare the email content
+            # Send approval email to the user
             user_email = adoption.user.email  # Get the user's email
             animal_name = adoption.animal.name  # Get the animal's name
             subject = "Adoption Approved"
             body = f"Dear {adoption.user.first_name},\n\nYour adoption request for {animal_name} has been approved. Please contact us for further instructions.\n\nBest regards,\nYour PAAWS"
-
-            # Send the email
             email_sent = send_email(subject, user_email, body)
             if not email_sent:
                 db.session.rollback()  # Rollback all changes if email fails
                 return jsonify({"error": "Failed to send approval email."}), 500
+
         else:
-            # Update the adoption status to the new status (other than 'Approved')
+            # If status is 'Rejected', send a rejection email
+            if new_status == 'Rejected':
+                user_email = adoption.user.email  # Get the user's email
+                animal_name = adoption.animal.name  # Get the animal's name
+                subject = "Adoption Rejected"
+                body = f"Dear {adoption.user.first_name},\n\nWe regret to inform you that your adoption request for {animal_name} has been rejected. However, we encourage you to keep trying! There are many animals in need of a loving home, and we believe the right one is out there for you. Please feel free to apply for another adoption, and don't hesitate to reach out if you have any questions.\n\nBest regards,\nYour PAAWS"
+                email_sent = send_email(subject, user_email, body)
+                if not email_sent:
+                    db.session.rollback()  # Rollback all changes if email fails
+                    return jsonify({"error": "Failed to send rejection email."}), 500
+
+            # Update the status normally
             adoption.adoption_status = new_status
 
-        # Step 2: Commit the changes to the database
+        # Commit changes to the database
         db.session.commit()
         return jsonify({"message": "Adoption status updated successfully!", "adoption": adoption.serialize()}), 200
 
     except SQLAlchemyError as e:
-        db.session.rollback()  # Rollback if any error occurs
+        db.session.rollback()
         return jsonify({"error": str(e)}), 500
 
 
+#####################################################################
+###test 
+@app.route('/adoptions_for_animal/<int:animal_id>', methods=['GET'])
+@jwt_required()  # Assuming JWT authentication is required
+def get_adoptions_for_animal(animal_id):
+    # Fetch the animal to ensure it exists
+    animal = Animal.query.get(animal_id)
+    if not animal:
+        return jsonify({"error": "Animal not found!"}), 404
+
+    # Fetch all adoptions related to this animal
+    adoptions = Adoption.query.filter_by(animal_id=animal_id).all()
+    if not adoptions:
+        return jsonify({"error": "No adoptions found for this animal!"}), 404
+
+    # Serialize the adoption data
+    adoptions_data = [adoption.serialize() for adoption in adoptions]
+
+    return jsonify(adoptions_data), 200
+###################
 """ @app.route('/update_adoption_status/<int:adoption_id>', methods=['PUT'])
 @jwt_required()
 @admin_required
