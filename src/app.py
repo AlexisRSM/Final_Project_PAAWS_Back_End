@@ -841,7 +841,7 @@ def update_adoption_status(adoption_id):
     
 
 #Edit adoption status with send email test -working test
-@app.route('/update_adoption_status/<int:adoption_id>', methods=['PUT'])
+""" @app.route('/update_adoption_status/<int:adoption_id>', methods=['PUT'])
 @jwt_required()
 @admin_required
 def update_adoption_status(adoption_id):
@@ -888,7 +888,66 @@ def update_adoption_status(adoption_id):
         return jsonify({"message": "Adoption status updated successfully!", "adoption": adoption.serialize()}), 200
     except SQLAlchemyError as e:
         db.session.rollback()
+        return jsonify({"error": str(e)}), 500 """
+############################################end of working adoption status
+@app.route('/update_adoption_status/<int:adoption_id>', methods=['PUT'])
+@jwt_required()
+@admin_required
+def update_adoption_status(adoption_id):
+    # Fetch the adoption record by ID
+    adoption = Adoption.query.get(adoption_id)
+    if not adoption:
+        return jsonify({"error": "Adoption not found!"}), 404
+
+    # Get the new status from the request data
+    data = request.get_json()
+    new_status = data.get('adoption_status')
+
+    # Validate that the new status is provided
+    if not new_status:
+        return jsonify({'error': 'Missing required fields: adoption_status'}), 400
+
+    try:
+        # Step 1: If the new status is 'Approved', reject all other adoption processes for the same animal
+        if new_status == 'Approved':
+            # Get the current animal's ID
+            animal_id = adoption.animal_id
+
+            # Fetch all other adoption requests for the same animal except the current one
+            other_adoptions = Adoption.query.filter(Adoption.animal_id == animal_id, Adoption.id != adoption_id).all()
+
+            # Reject all other adoption processes for the same animal
+            for other_adoption in other_adoptions:
+                if other_adoption.adoption_status != 'Rejected':  # Avoid redundant updates
+                    other_adoption.adoption_status = 'Rejected'
+                    db.session.add(other_adoption)  # Mark the change for saving
+
+            # Approve the current adoption process
+            adoption.adoption_status = 'Approved'
+
+            # Prepare the email content
+            user_email = adoption.user.email  # Get the user's email
+            animal_name = adoption.animal.name  # Get the animal's name
+            subject = "Adoption Approved"
+            body = f"Dear {adoption.user.first_name},\n\nYour adoption request for {animal_name} has been approved. Please contact us for further instructions.\n\nBest regards,\nYour PAAWS"
+
+            # Send the email
+            email_sent = send_email(subject, user_email, body)
+            if not email_sent:
+                db.session.rollback()  # Rollback all changes if email fails
+                return jsonify({"error": "Failed to send approval email."}), 500
+        else:
+            # Update the adoption status to the new status (other than 'Approved')
+            adoption.adoption_status = new_status
+
+        # Step 2: Commit the changes to the database
+        db.session.commit()
+        return jsonify({"message": "Adoption status updated successfully!", "adoption": adoption.serialize()}), 200
+
+    except SQLAlchemyError as e:
+        db.session.rollback()  # Rollback if any error occurs
         return jsonify({"error": str(e)}), 500
+
 
 """ @app.route('/update_adoption_status/<int:adoption_id>', methods=['PUT'])
 @jwt_required()
