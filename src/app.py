@@ -70,7 +70,7 @@ app.config['SQLALCHEMY_DATABASE_URI'] = db_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 #added cors configuration bc of stripe monthly subscription \test
-CORS(app, resources={r"/*": {"origins": ["http://localhost:5173", "http://localhost:5174","https://final-project-paaws-back-end.onrender.com"]}})
+CORS(app, resources={r"/*": {"origins": ["http://localhost:5173", "http://localhost:5174","https://paaws2.onrender.com"]}})
 
 
 MIGRATE = Migrate(app, db)
@@ -1043,7 +1043,7 @@ def get_adoption_form(id):
 #####################################---Stripe Payment Route--#######################################
 
 #Followinng Stripe's Instructions to payment
-YOUR_DOMAIN = 'https://final-project-paaws-back-end.onrender.com' # no extra dash bite server here!  http://localhost:5173
+YOUR_DOMAIN = 'https://paaws2.onrender.com' # no extra dash bite server here!  http://localhost:5173
 
 @app.route('/create-checkout-session', methods=['POST'])
 def create_checkout_session():
