@@ -318,7 +318,7 @@ def request_password_reset():
     db.session.commit()
 
     # Update the reset URL to match the frontend route structure
-    reset_url = f"http://localhost:5173/resetpass/{token}"
+    reset_url = f"https://final-project-paaws-back-end.onrender.com/reset-password/{token}" ##reset_url = f"http://localhost:5173/resetpass/{token}"
     
     send_email('Reset Your Password', user.email, 'Please use the following link to reset your password: {}'.format(reset_url))
 
